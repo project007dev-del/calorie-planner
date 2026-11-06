@@ -35,12 +35,23 @@ export const DEFAULT_BURN = {
   kcalPerKg: 7700,        // ~7,700 kcal ≈ 1 kg of body weight
 };
 
+// schedule: { type: 'daily' } | { type: 'interval', every: N, start: 'YYYY-MM-DD' }
+//         | { type: 'weekdays', days: [0-6] (0 = Sunday) } | { type: 'asneeded' }
 export const DEFAULT_SUPPLEMENTS = [
-  { id: 'creatine', name: 'Creatine monohydrate', dose: '3 g daily, including rest days', daily: true, kcal: 0, protein: 0, carbs: 0, fat: 0 },
-  { id: 'shake1', name: 'Protein shake', dose: '35 g powder (1 serving) ≈ 25 g protein', daily: true, kcal: 135, protein: 25, carbs: 4, fat: 2 },
-  { id: 'centrum', name: 'Centrum Advance', dose: 'As per label – don’t exceed', daily: true, kcal: 0, protein: 0, carbs: 0, fat: 0 },
-  { id: 'shake2', name: '2nd protein shake (backup)', dose: 'Only if short on protein – max 2 shakes/day', daily: false, kcal: 135, protein: 25, carbs: 4, fat: 2 },
+  { id: 'creatine', name: 'Creatine monohydrate', dose: '3 g daily, including rest days', schedule: { type: 'daily' }, kcal: 0, protein: 0, carbs: 0, fat: 0 },
+  { id: 'shake1', name: 'Protein shake', dose: '35 g powder (1 serving) ≈ 25 g protein', schedule: { type: 'daily' }, kcal: 135, protein: 25, carbs: 4, fat: 2 },
+  { id: 'centrum', name: 'Centrum Advance', dose: 'As per label – don’t exceed', schedule: { type: 'daily' }, kcal: 0, protein: 0, carbs: 0, fat: 0 },
+  { id: 'shake2', name: '2nd protein shake (backup)', dose: 'Only if short on protein – max 2 shakes/day', schedule: { type: 'asneeded' }, kcal: 135, protein: 25, carbs: 4, fat: 2 },
 ];
+
+/** Which meal to suggest when adding food at a given hour (0–23). */
+export function mealForHour(hour) {
+  if (hour < 10.5) return 'breakfast';
+  if (hour < 14.5) return 'lunch';
+  if (hour < 17.5) return 'snack';
+  return 'dinner';
+}
+export const mealForNow = (d = new Date()) => mealForHour(d.getHours() + d.getMinutes() / 60);
 
 export const MEALS = [
   { id: 'breakfast', name: 'Breakfast', hint: 'Aim for 25–35 g protein' },

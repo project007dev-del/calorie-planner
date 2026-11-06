@@ -1,8 +1,8 @@
 // Food screen: Log (by meal), History (past days), My Foods (your own food types).
 import { esc, fmt, fmtDate, fmtLongDate, num, numOrNull, uid, addDays, todayISO, isValidISO } from '../util.js';
 import { getDay } from '../store.js';
-import { MEALS, EXAMPLE_DAY } from '../plan.js';
-import { CATEGORIES, categoryName, allFoods, findFood, statesOf, stateLabel, BUILTIN_FOODS } from '../foods.js';
+import { MEALS, EXAMPLE_DAY, mealForNow } from '../plan.js';
+import { CATEGORIES, categoryName, allFoods, findFood, statesOf, stateLabel, BUILTIN_FOODS, portionChips } from '../foods.js';
 import {
   scale, makeEntry, entryNutrients, foodTotals, dayIntake, buildExampleEntries, recentFoods,
   foodHistory, summarizeFoodDays, foodUsage, per100FromServing, macroKcal, kcalStatus,
@@ -70,7 +70,7 @@ function renderLog(root, ctx) {
         <div class="small num">Protein <b>${fmt(intake.total.protein)}</b>/${fmt(t.protein)} · Carbs <b>${fmt(intake.total.carbs)}</b>/${fmt(t.carbs)} · Fat <b>${fmt(intake.total.fat)}</b>/${fmt(t.fat)} g</div></div>
       </div>
       <div class="row wrap" style="margin-top:10px">
-        <button class="btn btn-sm" data-copy>Copy yesterday</button>
+        <button class="btn btn-sm" data-copy>Copy previous day</button>
         <button class="btn btn-sm" data-example>Load plan example day</button>
         <button class="btn btn-sm" data-newfood>+ New food</button>
       </div>
@@ -90,12 +90,18 @@ async function copyYesterday(ctx, date) {
   const { state } = ctx;
   const prev = getDay(state, addDays(date, -1));
   if (!prev?.food?.length) { toast('Nothing logged the day before'); return; }
-  const day = getDay(state, date, true);
-  if (day.food.length && !(await confirmSheet('Copy yesterday', `This day already has ${day.food.length} item(s). Add yesterday’s ${prev.food.length} item(s) as well?`, 'Add them'))) return;
-  day.food.push(...prev.food.map((e) => ({ ...e, id: uid(), per100: { ...e.per100 } })));
+  await copyFoodInto(ctx, prev.food, date, 'the previous day');
+}
+
+/** Append copies of food entries to a date (asks first if that day already has food). */
+async function copyFoodInto(ctx, entries, date, fromLabel) {
+  const day = getDay(ctx.state, date, true);
+  if (day.food.length && !(await confirmSheet('Copy food', `${fmtLongDate(date)} already has ${day.food.length} item(s). Add the ${entries.length} item(s) from ${fromLabel} as well?`, 'Add them'))) return false;
+  day.food.push(...entries.map((e) => ({ ...e, id: uid(), per100: { ...e.per100 } })));
   ctx.save();
-  toast(`Copied ${prev.food.length} item(s)`);
+  toast(`Copied ${entries.length} item(s)`);
   ctx.render();
+  return true;
 }
 
 async function loadExample(ctx, date) {
@@ -149,7 +155,7 @@ function mealSelect(current) {
   return `<select class="input" name="meal">${MEALS.map((m) => `<option value="${m.id}" ${m.id === current ? 'selected' : ''}>${esc(m.name)}</option>`).join('')}</select>`;
 }
 
-export function openAddFood(ctx, { meal = 'breakfast', date, foodId = null, state: st = null, grams = null }) {
+export function openAddFood(ctx, { meal = mealForNow(), date, foodId = null, state: st = null, grams = null }) {
   const { state } = ctx;
   const recent = recentFoods(state, 10).filter((r) => findFood(state, r.foodId)?.[r.state]);
   const body = `
@@ -194,7 +200,8 @@ export function openAddFood(ctx, { meal = 'breakfast', date, foodId = null, stat
             <label class="field"><span>Grams</span><input class="input num" name="grams" inputmode="decimal" placeholder="0" value="${preset.grams ?? ''}" autocomplete="off"></label>
             <label class="field"><span>Meal</span>${mealSelect(meal)}</label>
           </div>
-          <div class="chips">${[25, 50, 100, 150, 200, 250].map((g) => `<button type="button" class="chip" data-g="${g}">${g} g</button>`).join('')}</div>
+          <div class="chips" data-portions></div>
+          <div class="chips" data-gramchips>${[25, 50, 100, 150, 200, 250].map((g) => `<button type="button" class="chip" data-g="${g}">${g} g</button>`).join('')}</div>
           <div class="preview" data-preview></div>
           <p class="muted small" data-per100></p>
           ${food.note ? `<p class="muted small">${esc(food.note)}</p>` : ''}
@@ -202,15 +209,24 @@ export function openAddFood(ctx, { meal = 'breakfast', date, foodId = null, stat
         searchStage.classList.add('hidden');
         detail.classList.remove('hidden');
         const gramsIn = detail.querySelector('[name=grams]');
+        const portionsEl = detail.querySelector('[data-portions]');
+        const drawPortions = () => {
+          const chips = portionChips(food, cur);
+          portionsEl.classList.toggle('hidden', !chips.length);
+          portionsEl.innerHTML = chips.map((p) => `<button type="button" class="chip" data-g="${p.grams}">${esc(p.label)} · ${fmt(p.grams)} g</button>`).join('');
+          portionsEl.querySelectorAll('[data-g]').forEach((b) => b.addEventListener('click', () => { gramsIn.value = b.dataset.g; update(); }));
+        };
+        let drawnFor = null;
         const update = () => {
           cur = detail.querySelector('[name=state]:checked')?.value || cur;
+          if (drawnFor !== cur) { drawnFor = cur; drawPortions(); }
           const per = food[cur];
           detail.querySelector('[data-preview]').innerHTML = previewHtml(scale(per, gramsIn.value));
           detail.querySelector('[data-per100]').textContent = `Per 100 g ${stateLabel(food, cur).toLowerCase()}: ${fmt(per.kcal)} kcal · P ${fmt(per.protein, 1)} · C ${fmt(per.carbs, 1)} · F ${fmt(per.fat, 1)} g`;
         };
         detail.querySelectorAll('[name=state]').forEach((r) => r.addEventListener('change', update));
         gramsIn.addEventListener('input', update);
-        detail.querySelectorAll('[data-g]').forEach((b) => b.addEventListener('click', () => { gramsIn.value = b.dataset.g; update(); }));
+        detail.querySelectorAll('[data-gramchips] [data-g]').forEach((b) => b.addEventListener('click', () => { gramsIn.value = b.dataset.g; update(); }));
         detail.querySelector('[data-back]').addEventListener('click', () => { detail.classList.add('hidden'); searchStage.classList.remove('hidden'); q.focus(); });
         const submit = () => {
           const g = num(gramsIn.value);
@@ -287,11 +303,20 @@ function openEditEntry(ctx, date, entryId) {
         ctx.render();
       });
       dlg.querySelector('[data-del]').addEventListener('click', () => {
-        day.food = day.food.filter((e) => e.id !== entryId);
+        const index = day.food.findIndex((e) => e.id === entryId);
+        const [removed] = day.food.splice(index, 1);
         ctx.save();
         dlg.close();
-        toast('Removed');
         ctx.render();
+        toast(`Removed ${removed.name}`, {
+          action: 'Undo',
+          onAction: () => {
+            const d = getDay(ctx.state, date, true);
+            d.food.splice(Math.min(index, d.food.length), 0, removed);
+            ctx.save();
+            ctx.render();
+          },
+        });
       });
     },
   });
@@ -402,53 +427,63 @@ export function openFoodForm(ctx, { food = null, prefillName = '', onSaved = nul
 function renderMyFoods(root, ctx) {
   const { state } = ctx;
   const q = ctx.ui.foodQuery || '';
-  const mine = state.customFoods.filter((c) => !q || c.name.toLowerCase().includes(q.toLowerCase()));
-  const builtins = BUILTIN_FOODS.filter((f) => !q || f.name.toLowerCase().includes(q.toLowerCase()));
-
-  const mineRows = mine.map((c) => `<li><button class="item" data-food="${esc(c.id)}">
-      <span class="grow"><span class="title">${esc(c.name)}</span> ${stateBadge(c.state)}<br>
-        <span class="meta num">${esc(categoryName(c.category))} · per 100 g: ${fmt(c.per100.kcal)} kcal · P ${fmt(c.per100.protein, 1)} · C ${fmt(c.per100.carbs, 1)} · F ${fmt(c.per100.fat, 1)}</span></span>
-      <span class="muted">›</span></button></li>`).join('');
-
-  const builtinRows = CATEGORIES.map((cat) => {
-    const list = builtins.filter((f) => f.category === cat.id);
-    if (!list.length) return '';
-    return `<tr><th colspan="5" style="padding-top:12px">${esc(cat.name)}</th></tr>` + list.map((f) => statesOf(f).map((s, i) => `
-      <tr data-food="${esc(f.id)}" style="cursor:pointer">
-        <td>${i === 0 ? esc(f.name) : ''} ${stateBadge(s)}</td>
-        <td class="r">${fmt(f[s].kcal)}</td><td class="r">${fmt(f[s].protein, 1)}</td><td class="r">${fmt(f[s].carbs, 1)}</td><td class="r">${fmt(f[s].fat, 1)}</td>
-      </tr>`).join('')).join('');
-  }).join('');
 
   root.innerHTML = `
     ${subtabs(TABS, 'foods')}
     <section class="card">
       <div class="card-head"><div><h2>My foods</h2><div class="sub">Foods you added yourself</div></div><button class="btn btn-sm btn-primary" data-new>+ New food</button></div>
       <input class="input" type="search" placeholder="Search" value="${esc(q)}" data-q aria-label="Search foods">
-      ${mineRows ? `<ul class="list" style="margin-top:8px">${mineRows}</ul>` : `<div class="empty">${q ? 'No matching foods.' : 'No foods yet. Tap <b>+ New food</b> and type the values from the label or a nutrition site. Pick raw or cooked so the grams you weigh match.'}</div>`}
+      <div data-mine></div>
     </section>
     <section class="card">
-      <details ${q ? 'open' : ''}>
+      <details data-builtin-wrap>
         <summary class="strong" style="cursor:pointer">Built-in foods (${BUILTIN_FOODS.length}) · values per 100 g</summary>
         <table class="table" style="margin-top:8px">
           <thead><tr><th>Food</th><th class="r">kcal</th><th class="r">P</th><th class="r">C</th><th class="r">F</th></tr></thead>
-          <tbody>${builtinRows || '<tr><td colspan="5" class="muted">No match</td></tr>'}</tbody>
+          <tbody data-builtin></tbody>
         </table>
         <p class="muted tiny">Cooked values for the plan’s foods come from your plan’s food table. Tap a food to see when you ate it.</p>
       </details>
     </section>`;
 
+  const mineEl = root.querySelector('[data-mine]');
+  const builtinEl = root.querySelector('[data-builtin]');
+  const wrap = root.querySelector('[data-builtin-wrap]');
+  const draw = (query) => {
+    const needle = query.trim().toLowerCase();
+    const match = (name) => !needle || name.toLowerCase().includes(needle);
+    const mine = state.customFoods.filter((c) => match(c.name));
+    mineEl.innerHTML = mine.length ? `<ul class="list" style="margin-top:8px">${mine.map((c) => `<li><button class="item" data-food="${esc(c.id)}">
+      <span class="grow"><span class="title">${esc(c.name)}</span> ${stateBadge(c.state)}<br>
+        <span class="meta num">${esc(categoryName(c.category))} · per 100 g: ${fmt(c.per100.kcal)} kcal · P ${fmt(c.per100.protein, 1)} · C ${fmt(c.per100.carbs, 1)} · F ${fmt(c.per100.fat, 1)}</span></span>
+      <span class="muted">›</span></button></li>`).join('')}</ul>`
+      : `<div class="empty">${needle ? 'No matching foods of your own.' : 'No foods yet. Tap <b>+ New food</b> and type the values from the label or a nutrition site. Pick raw or cooked so the grams you weigh match.'}</div>`;
+    const rows = CATEGORIES.map((cat) => {
+      const list = BUILTIN_FOODS.filter((f) => f.category === cat.id && match(f.name));
+      if (!list.length) return '';
+      return `<tr><th colspan="5" style="padding-top:12px">${esc(cat.name)}</th></tr>` + list.map((f) => statesOf(f).map((st, i) => `
+        <tr data-food="${esc(f.id)}" tabindex="0" role="button" aria-label="${esc(f.name)}, ${st}" style="cursor:pointer">
+          <td>${i === 0 ? esc(f.name) : ''} ${stateBadge(st)}</td>
+          <td class="r">${fmt(f[st].kcal)}</td><td class="r">${fmt(f[st].protein, 1)}</td><td class="r">${fmt(f[st].carbs, 1)}</td><td class="r">${fmt(f[st].fat, 1)}</td>
+        </tr>`).join('')).join('');
+    }).join('');
+    builtinEl.innerHTML = rows || '<tr><td colspan="5" class="muted">No match</td></tr>';
+    if (needle) wrap.open = true;
+  };
+  draw(q);
+
   const qIn = root.querySelector('[data-q]');
-  qIn.addEventListener('input', () => {
-    ctx.ui.foodQuery = qIn.value;
-    const pos = qIn.selectionStart;
-    ctx.render();
-    const again = document.querySelector('[data-q]');
-    again?.focus();
-    again?.setSelectionRange(pos, pos);
-  });
-  root.querySelector('[data-new]').addEventListener('click', () => openFoodForm(ctx, { prefillName: q }));
-  root.querySelectorAll('[data-food]').forEach((el) => el.addEventListener('click', () => openFoodDetail(ctx, el.dataset.food)));
+  qIn.addEventListener('input', () => { ctx.ui.foodQuery = qIn.value; draw(qIn.value); });
+  root.querySelector('[data-new]').addEventListener('click', () => openFoodForm(ctx, { prefillName: qIn.value }));
+  // One listener for both lists (they are redrawn while typing).
+  const open = (e) => {
+    const el = e.target.closest('[data-food]');
+    if (!el || (e.type === 'keydown' && e.key !== 'Enter' && e.key !== ' ')) return;
+    e.preventDefault();
+    openFoodDetail(ctx, el.dataset.food);
+  };
+  root.addEventListener('click', open);
+  root.addEventListener('keydown', open);
 }
 
 function openFoodDetail(ctx, foodId) {
@@ -480,7 +515,7 @@ function openFoodDetail(ctx, foodId) {
     onMount(dlg) {
       dlg.querySelector('[data-log]').addEventListener('click', () => {
         dlg.close();
-        openAddFood(ctx, { meal: 'breakfast', date: ctx.ui.date, foodId });
+        openAddFood(ctx, { date: ctx.ui.date, foodId });
       });
       dlg.querySelector('[data-editfood]')?.addEventListener('click', () => { dlg.close(); openFoodForm(ctx, { food: custom }); });
       dlg.querySelector('[data-delfood]')?.addEventListener('click', async () => {
@@ -515,7 +550,7 @@ function renderHistory(root, ctx) {
 
   const list = rows.map((r) => {
     const [cls, label] = STATUS[r.status];
-    const pct = Math.min(100, (r.total.kcal / t.kcal) * 100);
+    const pct = t.kcal > 0 ? Math.min(100, (r.total.kcal / t.kcal) * 100) : 0;
     return `<li><a class="item" href="#/food/history/${r.date}">
       <span class="grow"><span class="title">${esc(fmtLongDate(r.date))}</span> <span class="status ${cls}">${label}</span><br>
         <span class="meta num">${macroLine(r.total)} · ${r.entries} item${r.entries > 1 ? 's' : ''}</span>
@@ -570,7 +605,7 @@ function renderDayDetail(root, ctx, date) {
     <a class="btn btn-sm" href="#/food/history">‹ Food history</a>
     <section class="card">
       <div class="card-head"><div><h2>${esc(fmtLongDate(date))}</h2><span class="status ${status[0]}">${status[1]}</span></div>
-        <button class="btn btn-sm btn-primary" data-editday>Edit this day</button></div>
+        <div class="row wrap" style="justify-content:flex-end">${date !== todayISO() && day?.food?.length ? '<button class="btn btn-sm" data-copytoday>Copy to today</button>' : ''}<button class="btn btn-sm btn-primary" data-editday>Edit this day</button></div></div>
       <div class="grid4">
         <div class="stat"><div class="label">Calories</div><div class="value num">${fmt(intake.total.kcal)}<small> / ${fmt(t.kcal)}</small></div></div>
         <div class="stat"><div class="label">Protein</div><div class="value num">${fmt(intake.total.protein)}<small> g</small></div></div>
@@ -582,4 +617,7 @@ function renderDayDetail(root, ctx, date) {
     </section>`;
 
   root.querySelector('[data-editday]').addEventListener('click', () => { ctx.setDate(date); ctx.go('#/food/log'); });
+  root.querySelector('[data-copytoday]')?.addEventListener('click', async () => {
+    if (await copyFoodInto(ctx, day.food, todayISO(), fmtLongDate(date))) { ctx.setDate(todayISO()); ctx.go('#/food/log'); }
+  });
 }

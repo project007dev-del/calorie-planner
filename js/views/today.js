@@ -1,11 +1,12 @@
-import { esc, fmt, fmtSigned, fmtLongDate, numOrNull, todayISO } from '../util.js';
-import { getDay } from '../store.js';
-import { planDayById, planDayForDate, proteinAdvice, profileComplete, DEFAULT_BURN } from '../plan.js';
+import { esc, fmt, fmtDate, fmtSigned, fmtLongDate, numOrNull, todayISO, diffDays } from '../util.js';
+import { getDay, getLastBackup } from '../store.js';
+import { planDayById, planDayForDate, proteinAdvice, profileComplete, DEFAULT_BURN, mealForNow } from '../plan.js';
 import {
-  dayIntake, dayBalance, strengthStatus, cardioStatus, projection, streak, suppTaken, hasFood,
-  weightEntries, avgInWindow, suggestBaseKcal,
+  dayIntake, dayBalance, strengthStatus, cardioStatus, projection, hasFood, weightEntries, avgInWindow,
+  suggestBaseKcal, suppSchedule, isScheduled, isDue, nextDue, suppStreak, scheduleLabel,
 } from '../calc.js';
-import { ring, meter, alertBox, toast } from '../ui.js';
+import { ring, meter, alertBox, toast, backupNow } from '../ui.js';
+import { openAddFood } from './food.js';
 
 export function render(root, ctx) {
   const { state } = ctx;
@@ -19,7 +20,8 @@ export function render(root, ctx) {
   // ----- Calories & macros -----
   const caloriesCard = `
     <section class="card" aria-labelledby="h-cal">
-      <div class="card-head"><h2 id="h-cal">Calories</h2><a class="btn btn-sm" href="#/food/log">Log food</a></div>
+      <div class="card-head"><h2 id="h-cal">Calories</h2>
+        <div class="row"><a class="btn btn-sm" href="#/food/log">Food log</a><button class="btn btn-sm btn-primary" data-quickadd>+ Add food</button></div></div>
       <div class="ring-wrap">
         ${ring(intake.total.kcal, t.kcal)}
         <dl class="kv grow">
@@ -75,20 +77,38 @@ export function render(root, ctx) {
       <p class="small">${paceLine}</p>
     </section>`;
 
-  // ----- Supplements -----
-  const suppRows = state.supplements.map((sup) => {
+  // ----- Supplements (follow each one's schedule) -----
+  const rank = (sup) => (!isScheduled(sup) ? 2 : isDue(sup, date) ? 0 : 1);
+  const supps = state.supplements.map((sup, i) => ({ sup, i })).sort((a, b) => rank(a.sup) - rank(b.sup) || a.i - b.i).map((x) => x.sup);
+  const dueToday = supps.filter((sup) => rank(sup) === 0);
+  const dueTaken = dueToday.filter((sup) => day?.supps?.[sup.id]).length;
+  const suppRows = supps.map((sup) => {
     const on = !!day?.supps?.[sup.id];
-    const st = sup.daily ? streak(state, date, suppTaken(sup.id)) : 0;
+    const r = rank(sup);
+    const sched = suppSchedule(sup);
+    let right;
+    if (r === 2) right = '<span class="badge neutral">as needed</span>';
+    else if (r === 0) {
+      const st = suppStreak(state, sup, date);
+      right = `<span class="status ${st > 0 ? 'good' : ''}" title="Scheduled doses in a row">${sched.type === 'daily' ? `${st}-day streak` : `${st} in a row`}</span>`;
+    } else {
+      const nd = nextDue(sup, date);
+      const gap = nd ? diffDays(date, nd) : null;
+      const when = gap === 1 ? 'tomorrow' : gap !== null && gap <= 6 ? fmtDate(nd, { weekday: 'short' }) : nd ? fmtDate(nd, { month: 'short', day: 'numeric' }) : '';
+      right = `<span class="badge neutral">${nd ? `next ${esc(when)}` : 'not due'}</span>`;
+    }
     const extra = Number(sup.kcal) > 0 ? ` · +${fmt(sup.kcal)} kcal, ${fmt(sup.protein)} g protein` : '';
-    return `<li><label class="check">
+    const when = sched.type === 'daily' || sched.type === 'asneeded' ? '' : ` · ${esc(scheduleLabel(sup))}`;
+    return `<li><label class="check ${r === 1 && !on ? 'notdue' : ''}">
       <input type="checkbox" data-supp="${esc(sup.id)}" ${on ? 'checked' : ''}>
-      <span class="grow"><span class="title">${esc(sup.name)}</span><br><span class="meta">${esc(sup.dose || '')}${extra}</span></span>
-      ${sup.daily ? `<span class="status ${st > 0 ? 'good' : ''}" title="Days in a row">${st}-day streak</span>` : '<span class="badge neutral">backup</span>'}
+      <span class="grow"><span class="title">${esc(sup.name)}</span><br><span class="meta">${esc(sup.dose || '')}${when}${extra}</span></span>
+      ${right}
     </label></li>`;
   }).join('');
   const suppCard = `
     <section class="card" aria-labelledby="h-supp">
-      <div class="card-head"><h2 id="h-supp">Supplements</h2><a class="btn btn-sm" href="#/progress">History</a></div>
+      <div class="card-head"><div><h2 id="h-supp">Supplements</h2>${dueToday.length ? `<div class="sub">${dueTaken} of ${dueToday.length} due ${isToday ? 'today' : 'this day'} taken</div>` : ''}</div>
+        <a class="btn btn-sm" href="#/progress">History</a></div>
       <ul class="list">${suppRows || '<li class="empty">No supplements set up – add them in Settings.</li>'}</ul>
     </section>`;
 
@@ -126,9 +146,19 @@ export function render(root, ctx) {
       <p class="muted small" style="margin-top:8px">7-day average: <b>${avg7 ? fmt(avg7, 1) + ' kg' : '–'}</b> · Compare weekly averages, not single readings.${Number(state.profile.waistGoalCm) > 0 ? ` Waist goal: under ${fmt(state.profile.waistGoalCm, 1)} cm.` : ''}</p>
     </section>`;
 
+  const dayCount = Object.keys(state.days).length;
+  const lastBackup = getLastBackup();
+  const backupAge = lastBackup ? diffDays(lastBackup.slice(0, 10), todayISO()) : null;
+  const backupCard = isToday && dayCount >= 7 && (backupAge === null || backupAge > 30) ? `
+    <section class="alert info" style="align-items:center"><span class="ico" aria-hidden="true">i</span>
+      <div class="grow">${backupAge === null ? 'You haven’t backed up yet.' : `Last backup was ${backupAge} days ago.`} Your logs are stored only on this device.</div>
+      <button class="btn btn-sm" data-backup>Back up</button></section>` : '';
+
   const needsSetup = !profileComplete(state.profile);
-  root.innerHTML = (needsSetup ? setupCard(state.profile) : '') + caloriesCard + proteinCard + balanceCard + suppCard + workoutCard + bodyCard;
+  root.innerHTML = (needsSetup ? setupCard(state.profile) : '') + caloriesCard + proteinCard + balanceCard + suppCard + workoutCard + bodyCard + backupCard;
   if (needsSetup) wireSetup(root, ctx);
+  root.querySelector('[data-quickadd]').addEventListener('click', () => openAddFood(ctx, { meal: mealForNow(), date }));
+  root.querySelector('[data-backup]')?.addEventListener('click', async () => { if (await backupNow(state)) ctx.render(); });
 
   root.querySelectorAll('[data-supp]').forEach((cb) => cb.addEventListener('change', () => {
     const d = getDay(state, date, true);
@@ -139,7 +169,8 @@ export function render(root, ctx) {
   }));
   root.querySelectorAll('input[name="weightKg"], input[name="waistCm"]').forEach((inp) => inp.addEventListener('change', () => {
     const v = numOrNull(inp.value);
-    if (v !== null && (v <= 0 || v > 400)) { toast('Please enter a realistic number'); return; }
+    const [lo, hi] = inp.name === 'weightKg' ? [20, 400] : [30, 300];
+    if (v !== null && (v < lo || v > hi)) { toast(`Please enter a number between ${lo} and ${hi}`); inp.value = day?.[inp.name] ?? ''; return; }
     const d = getDay(state, date, true);
     if (v === null) delete d[inp.name];
     else d[inp.name] = v;

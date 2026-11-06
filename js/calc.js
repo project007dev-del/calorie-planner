@@ -1,7 +1,7 @@
 // All the maths, as pure functions (unit-tested in tests/calc.test.mjs).
 import { planDayById, EXAMPLE_DAY } from './plan.js';
 import { findFood } from './foods.js';
-import { addDays, diffDays, weekStart, num, fmt } from './util.js';
+import { addDays, diffDays, weekStart, num, fmt, parseISO } from './util.js';
 
 const KEYS = ['kcal', 'protein', 'carbs', 'fat'];
 export const zero = () => ({ kcal: 0, protein: 0, carbs: 0, fat: 0 });
@@ -303,6 +303,104 @@ export function adherence(state, today, predicate, days = 30) {
     if (predicate(state.days[d], d)) count++;
   }
   return { count, days: span };
+}
+
+// ---------- Supplement schedules ----------
+// schedule: { type: 'daily' } | { type: 'interval', every: N, start: ISO }
+//         | { type: 'weekdays', days: [0-6] } | { type: 'asneeded' }
+const WEEKDAY_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const TYPES = ['daily', 'interval', 'weekdays', 'asneeded'];
+
+export function suppSchedule(s) {
+  const sc = s?.schedule;
+  if (sc && TYPES.includes(sc.type)) return sc;
+  return s?.daily === false ? { type: 'asneeded' } : { type: 'daily' };
+}
+export const isScheduled = (s) => suppSchedule(s).type !== 'asneeded';
+const intervalDays = (sc) => Math.max(1, Math.round(num(sc.every)) || 1);
+
+/** Is the supplement due on this date according to its schedule? */
+export function isDue(s, date) {
+  const sc = suppSchedule(s);
+  if (sc.type === 'daily') return true;
+  if (sc.type === 'interval') {
+    const diff = diffDays(sc.start || date, date);
+    return diff >= 0 && diff % intervalDays(sc) === 0;
+  }
+  if (sc.type === 'weekdays') return (sc.days || []).includes(parseISO(date).getDay());
+  return false;
+}
+
+/** First due date on or after fromDate (null for "only when needed"). */
+export function nextDue(s, fromDate, maxDays = 400) {
+  if (!isScheduled(s)) return null;
+  for (let i = 0; i <= maxDays; i++) {
+    const d = addDays(fromDate, i);
+    if (isDue(s, d)) return d;
+  }
+  return null;
+}
+
+export function scheduleLabel(s) {
+  const sc = suppSchedule(s);
+  if (sc.type === 'daily') return 'Every day';
+  if (sc.type === 'interval') {
+    const n = intervalDays(sc);
+    return n === 1 ? 'Every day' : n === 7 ? 'Once a week' : `Every ${n} days`;
+  }
+  if (sc.type === 'weekdays') {
+    const days = [...new Set(sc.days || [])].sort((a, b) => ((a + 6) % 7) - ((b + 6) % 7)); // Monday first
+    if (days.length === 7) return 'Every day';
+    return days.length ? days.map((d) => WEEKDAY_SHORT[d]).join(', ') : 'No days chosen';
+  }
+  return 'Only when needed';
+}
+
+/**
+ * Scheduled doses in a row, counting back from `today`. Days it isn't due are
+ * skipped, and today doesn't break the streak until the day is over.
+ */
+export function suppStreak(state, s, today) {
+  const sc = suppSchedule(s);
+  if (!isScheduled(s) || (sc.type === 'weekdays' && !(sc.days || []).length)) return 0;
+  const first = Object.keys(state.days).sort()[0];
+  if (!first) return 0;
+  let n = 0;
+  for (let i = 0, d = today; i < 3660; i++, d = addDays(d, -1)) {
+    if (d < first || (s.since && d < s.since) || (sc.type === 'interval' && sc.start && d < sc.start)) break;
+    if (!isDue(s, d)) continue;
+    if (state.days[d]?.supps?.[s.id]) n++;
+    else if (d !== today) break;
+  }
+  return n;
+}
+
+/**
+ * Over the last `days` days (not before tracking started): doses due, taken on
+ * their due day, and extra doses on other days. Today only counts once taken.
+ */
+export function suppAdherence(state, s, today, days = 30) {
+  const first = Object.keys(state.days).sort()[0];
+  let start = addDays(today, -(days - 1));
+  for (const floor of [first, s.since]) if (floor && floor > start) start = floor;
+  if (!first || start > today) return { due: 0, taken: 0, extra: 0, days: 0 };
+  const span = diffDays(start, today) + 1;
+  let due = 0, taken = 0, extra = 0;
+  for (let i = 0; i < span; i++) {
+    const d = addDays(start, i);
+    const took = !!state.days[d]?.supps?.[s.id];
+    if (isDue(s, d)) {
+      if (took) { due++; taken++; } else if (d !== today) due++;
+    } else if (took) extra++;
+  }
+  return { due, taken, extra, days: span };
+}
+
+export const dueSupplements = (state, date) => state.supplements.filter((s) => isScheduled(s) && isDue(s, date));
+/** True when at least one supplement was due on that date and all due ones were ticked. */
+export function allDueTaken(state, date) {
+  const due = dueSupplements(state, date);
+  return due.length > 0 && due.every((s) => state.days[date]?.supps?.[s.id]);
 }
 
 export function workoutSessions(state) {

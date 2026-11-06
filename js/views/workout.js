@@ -1,5 +1,5 @@
 // Workout screen: today's session (checkboxes + kg × reps) and history.
-import { esc, fmt, fmtDate, fmtLongDate, num, addDays, todayISO, weekStart, isValidISO, parseISO } from '../util.js';
+import { esc, fmt, fmtUpTo, fmtDate, fmtLongDate, num, numOrNull, addDays, todayISO, weekStart, isValidISO, parseISO } from '../util.js';
 import { getDay } from '../store.js';
 import { WORKOUT_DAYS, JOG_STAGES, TRAINING_NOTES, planDayById, planDayForDate, allExercises } from '../plan.js';
 import {
@@ -24,7 +24,7 @@ export function render(root, ctx, params) {
 }
 
 const setsText = (e) => `${e.setsMin === e.setsMax ? e.setsMin : `${e.setsMin}–${e.setsMax}`} × ${e.repsMin}–${e.repsMax}${e.unit === 's' ? ' s' : ''}${e.perSide ? ` / ${e.perSide}` : ''}`;
-const setStr = (s, ex) => (ex?.noWeight || !num(s.kg) ? `${fmt(s.reps)}${ex?.unit === 's' ? ' s' : ' reps'}` : `${fmt(s.kg, 1)} kg × ${fmt(s.reps)}`);
+const setStr = (s, ex) => (ex?.noWeight || !num(s.kg) ? `${fmt(s.reps)}${ex?.unit === 's' ? ' s' : ' reps'}` : `${fmtUpTo(s.kg, 2)} kg × ${fmt(s.reps)}`);
 
 function ensureWorkout(state, date, planId) {
   const d = getDay(state, date, true);
@@ -47,7 +47,7 @@ function renderToday(root, ctx) {
   const cardio = day?.workout?.cardio || { done: false, minutes: 30 };
   const wd = parseISO(date).getDay();
 
-  const options = WORKOUT_DAYS.map((d) => `<option value="${d.id}" ${d.id === plan.id ? 'selected' : ''}>${esc(d.short)} · ${esc(d.title)}${d.weekday === wd ? ' (planned today)' : ''}</option>`).join('');
+  const options = WORKOUT_DAYS.map((d) => `<option value="${d.id}" ${d.id === plan.id ? 'selected' : ''}>${esc(d.short)} · ${esc(d.title)}${d.weekday === wd ? (date === todayISO() ? ' (today’s plan)' : ' (planned for this day)') : ''}</option>`).join('');
 
   const exercises = plan.exercises.map((e, i) => {
     const log = exLogs[e.id] || {};
@@ -58,7 +58,7 @@ function renderToday(root, ctx) {
       const s = log.sets?.[k] || {};
       const optional = k >= e.setsMin;
       return `<span class="n">Set ${k + 1}${optional ? '<span class="muted tiny"> opt.</span>' : ''}</span>
-        ${e.noWeight ? '' : `<input class="input sm num" data-set="${k}" data-f="kg" inputmode="decimal" placeholder="${lastKg ? fmt(lastKg, 1) : 'kg'}" value="${esc(s.kg ?? '')}" aria-label="Set ${k + 1} weight in kg">`}
+        ${e.noWeight ? '' : `<input class="input sm num" data-set="${k}" data-f="kg" inputmode="decimal" placeholder="${lastKg ? fmtUpTo(lastKg, 2) : 'kg'}" value="${esc(s.kg ?? '')}" aria-label="Set ${k + 1} weight in kg">`}
         <input class="input sm num" data-set="${k}" data-f="reps" inputmode="numeric" placeholder="${e.repsMin}–${e.repsMax}" value="${esc(s.reps ?? '')}" aria-label="Set ${k + 1} ${e.unit === 's' ? 'seconds' : 'reps'}">`;
     }).join('');
     return `<div class="ex ${log.done ? 'done' : ''}" data-ex="${e.id}">
@@ -68,7 +68,7 @@ function renderToday(root, ctx) {
           <div class="ex-target">${setsText(e)} · rest ${esc(e.rest)}</div></div>
         <a class="btn btn-sm" href="#/workout/exercise/${e.id}" aria-label="${esc(e.name)} history">History</a>
       </div>
-      ${last ? `<div class="small muted" style="margin-top:6px">Last time (${esc(fmtDate(last.date))}): ${last.sets.map((s) => setStr(s, e)).join(' · ')}</div>` : ''}
+      ${last ? `<div class="row between wrap" style="margin-top:6px"><span class="small muted grow">Last time (${esc(fmtDate(last.date))}): ${last.sets.map((s) => setStr(s, e)).join(' · ')}</span><button type="button" class="btn btn-sm" data-samelast>Same as last time</button></div>` : ''}
       ${hint ? `<div class="hint ${hint.type === 'up' ? 'up' : ''}">${hint.type === 'up' ? '<span class="status good">Progress</span> ' : ''}${esc(hint.text)}</div>` : ''}
       <div class="sets" style="${e.noWeight ? 'grid-template-columns:52px 1fr' : ''}">
         <span class="h"></span>${e.noWeight ? '' : '<span class="h">kg</span>'}<span class="h">${e.unit === 's' ? 'seconds' : 'reps'}</span>
@@ -143,6 +143,23 @@ function renderToday(root, ctx) {
       refreshProgress();
       if (doneBox.checked) toast(`${ex.name} ✓`);
     });
+    card.querySelector('[data-samelast]')?.addEventListener('click', () => {
+      const last = lastExerciseLog(state, exId, date);
+      if (!last) return;
+      const log = getLog();
+      last.sets.slice(0, ex.setsMax).forEach((ls, k) => {
+        while (log.sets.length <= k) log.sets.push({ kg: '', reps: '' });
+        const row = log.sets[k];
+        if (!ex.noWeight && !row.kg && ls.kg) row.kg = String(ls.kg);
+        if (!row.reps) row.reps = String(ls.reps);
+        const kgIn = card.querySelector(`[data-set="${k}"][data-f="kg"]`);
+        const repsIn = card.querySelector(`[data-set="${k}"][data-f="reps"]`);
+        if (kgIn) kgIn.value = row.kg;
+        if (repsIn) repsIn.value = row.reps;
+      });
+      ctx.save();
+      toast('Filled in from last time – change anything that differs');
+    });
     card.querySelectorAll('[data-set]').forEach((inp) => {
       inp.addEventListener('input', () => {
         const log = getLog();
@@ -171,7 +188,9 @@ function renderToday(root, ctx) {
   const cMin = root.querySelector('[data-cardio-min]');
   const saveCardio = () => {
     const wk = ensureWorkout(state, date, plan.id);
-    wk.cardio = { done: cDone.checked, minutes: Math.max(0, Math.min(300, num(cMin.value))) || 30 };
+    const m = numOrNull(cMin.value);
+    wk.cardio = { done: cDone.checked, minutes: m === null ? 30 : Math.max(0, Math.min(300, m)) };
+    cMin.value = wk.cardio.minutes;
     ctx.save();
     refreshProgress();
   };

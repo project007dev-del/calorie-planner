@@ -1,13 +1,15 @@
 // Service worker: makes the app installable and usable offline.
 // Strategy: network-first for same-origin files (so updates show up right away),
 // falling back to the cached copy when offline.
-const CACHE = 'planner-v1';
+const CACHE = 'planner-v2';
+const NETWORK_TIMEOUT_MS = 3000;
 const SHELL = [
   './',
   './index.html',
   './manifest.webmanifest',
   './css/styles.css',
   './js/app.js',
+  './js/theme.js',
   './js/util.js',
   './js/ui.js',
   './js/store.js',
@@ -42,15 +44,17 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const req = event.request;
   if (req.method !== 'GET' || new URL(req.url).origin !== self.location.origin) return;
-  event.respondWith(
-    fetch(req)
-      .then((res) => {
-        if (res.ok) {
-          const copy = res.clone();
-          caches.open(CACHE).then((c) => c.put(req, copy));
-        }
-        return res;
-      })
-      .catch(() => caches.match(req, { ignoreSearch: true }).then((hit) => hit || caches.match('./index.html')))
-  );
+  // Network first (so updates show up), but if the network is slow or offline,
+  // answer from the saved copy after a few seconds. The network reply still refreshes the cache.
+  const network = fetch(req).then(async (res) => {
+    if (res.ok) await caches.open(CACHE).then((c) => c.put(req, res.clone()));
+    return res;
+  });
+  event.waitUntil(network.catch(() => {}));
+  event.respondWith((async () => {
+    const cached = await caches.match(req, { ignoreSearch: true });
+    if (!cached) return network.catch(() => caches.match('./index.html'));
+    const slow = new Promise((resolve) => setTimeout(() => resolve(cached), NETWORK_TIMEOUT_MS));
+    return Promise.race([network.catch(() => cached), slow]);
+  })());
 });

@@ -1,15 +1,63 @@
 // DOM helpers shared by the views.
-import { esc, fmt } from './util.js';
+import { esc, fmt, todayISO } from './util.js';
 import { badge } from './foods.js';
+import { exportJSON, markBackedUp } from './store.js';
 
-export function toast(msg) {
+/**
+ * Short message at the bottom. With { action, onAction } it shows a button
+ * (e.g. "Undo") and stays a little longer.
+ */
+export function toast(msg, { action = null, onAction = null, ms = null } = {}) {
   const el = document.getElementById('toast');
   if (!el) return;
-  el.textContent = msg;
+  el.replaceChildren(document.createTextNode(msg));
+  if (action && onAction) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'toast-action';
+    b.textContent = action;
+    b.addEventListener('click', () => { el.classList.remove('show'); onAction(); });
+    el.append(b);
+  }
+  el.classList.toggle('has-action', !!action);
   el.classList.add('show');
   clearTimeout(toast._t);
-  toast._t = setTimeout(() => el.classList.remove('show'), 2200);
+  toast._t = setTimeout(() => el.classList.remove('show'), ms ?? (action ? 5000 : 2200));
 }
+
+// ----- Bottom sheets & the phone's Back button -----
+// While a sheet is open we add one history entry, so Back (or the Android back
+// gesture) closes the sheet instead of leaving the screen.
+const openSheets = () => [...document.querySelectorAll('dialog.sheet')].filter((d) => d.open);
+let backPending = false; // we called history.back() ourselves and it hasn't landed yet
+let settleWaiters = [];
+const settle = () => {
+  backPending = false;
+  const waiters = settleWaiters;
+  settleWaiters = [];
+  waiters.forEach((resolve) => resolve());
+};
+/** Resolves once our own history clean-up is done – navigate only after this. */
+export function historySettled() {
+  if (!backPending) return Promise.resolve();
+  return new Promise((resolve) => {
+    settleWaiters.push(resolve);
+    setTimeout(settle, 800); // safety net: never wait forever
+  });
+}
+window.addEventListener('popstate', () => {
+  if (backPending) {
+    // Our own clean-up after a sheet closed. If another sheet opened meanwhile, re-arm Back for it.
+    settle();
+    if (openSheets().length && !history.state?.sheet) history.pushState({ sheet: true }, '');
+    return;
+  }
+  const top = openSheets().at(-1);
+  if (!top) return;
+  top.dataset.closedByBack = '1';
+  top.close();
+  if (openSheets().length) history.pushState({ sheet: true }, ''); // a sheet below is still open
+});
 
 /**
  * Bottom sheet built on <dialog>. `body` is trusted HTML built by the caller
@@ -28,8 +76,29 @@ export function openSheet({ title, body, onMount, onClose }) {
     </div>`;
   document.body.append(dlg);
   dlg.querySelector('[data-close]').addEventListener('click', () => dlg.close());
-  dlg.addEventListener('click', (e) => { if (e.target === dlg) dlg.close(); }); // tap backdrop
-  dlg.addEventListener('close', () => { dlg.remove(); onClose?.(); });
+  // Close on a tap on the dimmed backdrop – only when the press also started there,
+  // so selecting text in a field and releasing outside doesn't close the sheet.
+  let downOnBackdrop = false;
+  dlg.addEventListener('pointerdown', (e) => { downOnBackdrop = e.target === dlg; });
+  dlg.addEventListener('click', (e) => { if (e.target === dlg && downOnBackdrop) dlg.close(); });
+  // Clean up right when the sheet closes (the 'close' event can arrive late), exactly once.
+  let cleaned = false;
+  const cleanup = () => {
+    if (cleaned) return;
+    cleaned = true;
+    dlg.remove();
+    // Closed by a button/backdrop: drop the history entry we added (once, and only if nothing else is open).
+    if (!dlg.dataset.closedByBack && !backPending && !openSheets().length && history.state?.sheet) {
+      backPending = true;
+      history.back();
+    }
+    onClose?.();
+  };
+  const nativeClose = dlg.close.bind(dlg);
+  dlg.close = (value) => { if (dlg.open) nativeClose(value); cleanup(); };
+  dlg.addEventListener('close', cleanup); // e.g. closed with the Esc key
+  // One history entry covers all open sheets; while our own Back is in flight the popstate handler re-adds it.
+  if (!history.state?.sheet && !backPending) history.pushState({ sheet: true }, '');
   dlg.showModal();
   onMount?.(dlg);
   return dlg;
@@ -113,4 +182,29 @@ export function download(filename, text, type = 'application/json') {
   document.body.append(a);
   a.click();
   setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+}
+
+/** Save a backup: share sheet on phones (Files, Drive, Messenger…), normal download elsewhere. */
+export async function shareOrDownload(filename, text, type = 'application/json') {
+  try {
+    const file = new File([text], filename, { type });
+    if (navigator.canShare?.({ files: [file] }) && matchMedia('(pointer: coarse)').matches) {
+      await navigator.share({ files: [file], title: filename });
+      return 'shared';
+    }
+  } catch (e) {
+    if (e?.name === 'AbortError') return 'cancelled';
+    // fall through to a normal download
+  }
+  download(filename, text, type);
+  return 'downloaded';
+}
+
+/** Export all planner data now (share sheet on phones, download on computers). */
+export async function backupNow(state) {
+  const how = await shareOrDownload(`planner-backup-${todayISO()}.json`, exportJSON(state));
+  if (how === 'cancelled') return false;
+  markBackedUp();
+  toast(how === 'shared' ? 'Backup ready – keep it somewhere safe' : 'Backup downloaded');
+  return true;
 }

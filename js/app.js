@@ -1,7 +1,8 @@
 // App shell: hash router, shared date selector, persistence.
 import { loadState, saveState } from './store.js';
 import { todayISO, addDays, fmtDate, isValidISO } from './util.js';
-import { toast } from './ui.js';
+import { toast, historySettled } from './ui.js';
+import { applyTheme, toggleTheme } from './theme.js';
 import * as today from './views/today.js';
 import * as food from './views/food.js';
 import * as workout from './views/workout.js';
@@ -16,15 +17,25 @@ const datebar = document.getElementById('datebar');
 const dateLabel = document.getElementById('dateLabel');
 const dateInput = document.getElementById('dateInput');
 
+let askedPersist = false;
 const ctx = {
   state: loadState(),
   ui: { date: todayISO() },
+  installPrompt: null, // set by "beforeinstallprompt" (Chrome / Android)
   save() {
-    if (!saveState(ctx.state)) toast('Could not save – storage may be full');
+    if (!saveState(ctx.state)) { toast('Could not save – storage may be full'); return; }
+    // Ask the browser not to clear the planner's storage when space runs low.
+    if (!askedPersist && navigator.storage?.persist) {
+      askedPersist = true;
+      navigator.storage.persisted().then((p) => p || navigator.storage.persist()).catch(() => {});
+    }
   },
   go(hash) {
-    if (location.hash === hash) render();
-    else location.hash = hash;
+    // If a sheet just closed, let its Back step finish first or it would undo this navigation.
+    historySettled().then(() => {
+      if (location.hash === hash) render();
+      else location.hash = hash;
+    });
   },
   setDate(iso) {
     if (isValidISO(iso)) ctx.ui.date = iso;
@@ -80,6 +91,24 @@ document.getElementById('datePrev').addEventListener('click', () => { ctx.ui.dat
 document.getElementById('dateNext').addEventListener('click', () => { ctx.ui.date = addDays(ctx.ui.date, 1); render(); });
 document.getElementById('dateToday').addEventListener('click', () => { ctx.ui.date = todayISO(); render(); });
 dateInput.addEventListener('change', () => { if (isValidISO(dateInput.value)) { ctx.ui.date = dateInput.value; render(); } });
+// On computers a click on the (invisible) date field doesn't open the calendar by itself.
+dateInput.addEventListener('click', () => {
+  if (!matchMedia('(pointer: fine)').matches) return; // phones open their own picker
+  try { dateInput.showPicker?.(); } catch { /* not allowed here */ }
+});
+
+applyTheme();
+document.getElementById('themeToggle').addEventListener('click', () => {
+  toggleTheme();
+  if (parseHash().name === 'settings') render(); // keep the Appearance choice in sync
+});
+
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  ctx.installPrompt = e;
+  if (parseHash().name === 'settings') render();
+});
+window.addEventListener('appinstalled', () => { ctx.installPrompt = null; toast('App installed'); });
 
 // Keep "today" correct if the app stays open past midnight.
 let lastToday = todayISO();

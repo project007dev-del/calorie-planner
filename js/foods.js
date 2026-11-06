@@ -27,22 +27,22 @@ export const BUILTIN_FOODS = [
   { id: 'tilapia', name: 'Tilapia', category: 'protein', raw: n(96, 20.1, 0, 1.7), cooked: n(128, 26.2, 0, 2.7) },
   { id: 'bangus', name: 'Bangus / milkfish', category: 'protein', raw: n(148, 20.5, 0, 6.7), cooked: n(190, 26.3, 0, 8.6) },
   { id: 'tuna_canned_water', name: 'Tuna, canned in water (drained)', category: 'protein', cooked: n(116, 25.5, 0, 0.8), labels: { cooked: 'Canned' } },
-  { id: 'egg_whole', name: 'Whole egg', category: 'protein', raw: n(143, 12.6, 0.7, 9.5), cooked: n(155, 12.6, 1.1, 10.6), note: '1 large egg ≈ 50 g without shell.' },
-  { id: 'egg_white', name: 'Egg white', category: 'protein', raw: n(52, 10.9, 0.7, 0.2), cooked: n(52, 10.9, 0.7, 0.2) },
+  { id: 'egg_whole', name: 'Whole egg', category: 'protein', raw: n(143, 12.6, 0.7, 9.5), cooked: n(155, 12.6, 1.1, 10.6), note: '1 large egg ≈ 50 g without shell.', units: [{ one: 'egg', many: 'eggs', g: 50 }] },
+  { id: 'egg_white', name: 'Egg white', category: 'protein', raw: n(52, 10.9, 0.7, 0.2), cooked: n(52, 10.9, 0.7, 0.2), units: [{ one: 'egg white', many: 'egg whites', g: 33 }] },
   { id: 'tofu_firm', name: 'Firm tofu', category: 'protein', raw: n(144, 17.3, 2.8, 8.7), cooked: n(144, 17.3, 2.8, 8.7), labels: { raw: 'As packaged', cooked: 'Cooked (no oil)' }, note: 'Tofu is already cooked; log frying oil separately.' },
 
   // Rice, grains & starches
-  { id: 'brown_rice', name: 'Brown rice', category: 'carbs', raw: n(367, 7.5, 76.2, 3.2), cooked: n(123, 2.7, 25.6, 1.0), labels: { raw: 'Raw (dry)' } },
-  { id: 'white_rice', name: 'White rice', category: 'carbs', raw: n(365, 7.1, 80.0, 0.7), cooked: n(130, 2.7, 28.2, 0.3), labels: { raw: 'Raw (dry)' } },
-  { id: 'oats', name: 'Oats', category: 'carbs', raw: n(389, 16.9, 66.3, 6.9), cooked: n(71, 2.5, 12.0, 1.5), labels: { raw: 'Dry', cooked: 'Cooked with water' } },
+  { id: 'brown_rice', name: 'Brown rice', category: 'carbs', raw: n(367, 7.5, 76.2, 3.2), cooked: n(123, 2.7, 25.6, 1.0), labels: { raw: 'Raw (dry)' }, units: [{ one: 'cup', many: 'cups', g: 195, state: 'cooked' }, { one: 'cup', many: 'cups', g: 185, state: 'raw' }] },
+  { id: 'white_rice', name: 'White rice', category: 'carbs', raw: n(365, 7.1, 80.0, 0.7), cooked: n(130, 2.7, 28.2, 0.3), labels: { raw: 'Raw (dry)' }, units: [{ one: 'cup', many: 'cups', g: 158, state: 'cooked' }, { one: 'cup', many: 'cups', g: 185, state: 'raw' }] },
+  { id: 'oats', name: 'Oats', category: 'carbs', raw: n(389, 16.9, 66.3, 6.9), cooked: n(71, 2.5, 12.0, 1.5), labels: { raw: 'Dry', cooked: 'Cooked with water' }, units: [{ one: '× ½ cup', many: '× ½ cup', g: 40, state: 'raw' }, { one: 'cup', many: 'cups', g: 234, state: 'cooked' }] },
   { id: 'kamote', name: 'Kamote / sweet potato', category: 'carbs', raw: n(86, 1.6, 20.1, 0.1), cooked: n(76, 1.4, 17.7, 0.1) },
   { id: 'potato', name: 'Potato', category: 'carbs', raw: n(77, 2.0, 17.5, 0.1), cooked: n(87, 1.9, 20.1, 0.1) },
-  { id: 'wholewheat_bread', name: 'Whole-wheat bread', category: 'carbs', raw: n(252, 12.4, 42.7, 3.5), labels: { raw: 'As bought' } },
-  { id: 'pandesal', name: 'Pandesal (approx.)', category: 'carbs', raw: n(290, 8.6, 53.0, 4.4), labels: { raw: 'As bought' }, note: 'Bakery recipes vary a lot – 1 piece is often 25–40 g.' },
+  { id: 'wholewheat_bread', name: 'Whole-wheat bread', category: 'carbs', raw: n(252, 12.4, 42.7, 3.5), labels: { raw: 'As bought' }, units: [{ one: 'slice', many: 'slices', g: 32 }] },
+  { id: 'pandesal', name: 'Pandesal (approx.)', category: 'carbs', raw: n(290, 8.6, 53.0, 4.4), labels: { raw: 'As bought' }, note: 'Bakery recipes vary a lot – 1 piece is often 25–40 g.', units: [{ one: 'piece', many: 'pieces', g: 30 }] },
 
   // Fruit
-  { id: 'banana', name: 'Banana', category: 'fruit', raw: n(89, 1.1, 22.8, 0.3), labels: { raw: 'Raw (peeled)' } },
-  { id: 'apple', name: 'Apple', category: 'fruit', raw: n(52, 0.3, 13.8, 0.2) },
+  { id: 'banana', name: 'Banana', category: 'fruit', raw: n(89, 1.1, 22.8, 0.3), labels: { raw: 'Raw (peeled)' }, units: [{ one: 'medium banana', many: 'medium bananas', g: 118 }] },
+  { id: 'apple', name: 'Apple', category: 'fruit', raw: n(52, 0.3, 13.8, 0.2), units: [{ one: 'medium apple', many: 'medium apples', g: 182 }] },
   { id: 'mango', name: 'Mango, ripe', category: 'fruit', raw: n(60, 0.8, 15.0, 0.4) },
   { id: 'papaya', name: 'Papaya', category: 'fruit', raw: n(43, 0.5, 10.8, 0.3) },
 
@@ -60,13 +60,13 @@ export const BUILTIN_FOODS = [
   { id: 'cucumber', name: 'Cucumber', category: 'veg', raw: n(15, 0.7, 3.6, 0.1) },
 
   // Fats, oils & nuts
-  { id: 'peanuts', name: 'Peanuts', category: 'fats', raw: n(567, 25.8, 16.1, 49.2), cooked: n(587, 24.4, 21.3, 49.7), labels: { cooked: 'Roasted' } },
-  { id: 'peanut_butter', name: 'Peanut butter', category: 'fats', raw: n(588, 25.0, 20.0, 50.0), labels: { raw: 'As bought' } },
-  { id: 'oil', name: 'Cooking oil (olive / canola)', category: 'fats', raw: n(884, 0, 0, 100), labels: { raw: 'As is' }, note: '1 tsp ≈ 5 g, 1 tbsp ≈ 14 g.' },
+  { id: 'peanuts', name: 'Peanuts', category: 'fats', raw: n(567, 25.8, 16.1, 49.2), cooked: n(587, 24.4, 21.3, 49.7), labels: { cooked: 'Roasted' }, units: [{ one: 'handful', many: 'handfuls', g: 28 }] },
+  { id: 'peanut_butter', name: 'Peanut butter', category: 'fats', raw: n(588, 25.0, 20.0, 50.0), labels: { raw: 'As bought' }, units: [{ one: 'tbsp', many: 'tbsp', g: 16 }] },
+  { id: 'oil', name: 'Cooking oil (olive / canola)', category: 'fats', raw: n(884, 0, 0, 100), labels: { raw: 'As is' }, note: '1 tsp ≈ 5 g, 1 tbsp ≈ 14 g.', units: [{ one: 'tsp', many: 'tsp', g: 5 }, { one: 'tbsp', many: 'tbsp', g: 14 }] },
 
   // Dairy & drinks
-  { id: 'milk_whole', name: 'Milk, whole', category: 'dairy', raw: n(61, 3.2, 4.8, 3.3), labels: { raw: 'As is' }, note: '1 cup ≈ 244 g.' },
-  { id: 'milk_lowfat', name: 'Milk, low-fat (1%)', category: 'dairy', raw: n(42, 3.4, 5.0, 1.0), labels: { raw: 'As is' } },
+  { id: 'milk_whole', name: 'Milk, whole', category: 'dairy', raw: n(61, 3.2, 4.8, 3.3), labels: { raw: 'As is' }, note: '1 cup ≈ 244 g.', units: [{ one: 'cup', many: 'cups', g: 244 }] },
+  { id: 'milk_lowfat', name: 'Milk, low-fat (1%)', category: 'dairy', raw: n(42, 3.4, 5.0, 1.0), labels: { raw: 'As is' }, units: [{ one: 'cup', many: 'cups', g: 244 }] },
   { id: 'greek_yogurt', name: 'Greek yogurt, plain non-fat', category: 'dairy', raw: n(59, 10.2, 3.6, 0.4), labels: { raw: 'As is' } },
 ];
 
@@ -82,6 +82,7 @@ export function customToFood(c) {
     raw: c.state === 'raw' ? c.per100 : null,
     cooked: c.state === 'cooked' ? c.per100 : null,
     serving: c.serving || null,
+    units: c.serving?.grams > 0 ? [{ one: 'serving', many: 'servings', g: c.serving.grams }] : [],
     note: c.note || '',
   };
 }
@@ -95,3 +96,9 @@ export function stateLabel(food, st) {
   return food?.labels?.[st] || (st === 'raw' ? 'Raw' : 'Cooked');
 }
 export const badge = (st) => (st === 'raw' ? 'RAW' : 'COOKED');
+
+/** Portion shortcuts for a food in the chosen state, e.g. "2 eggs · 100 g". */
+export function portionChips(food, st) {
+  const units = (food?.units || []).filter((u) => !u.state || u.state === st).slice(0, 2);
+  return units.flatMap((u) => [1, 2, 3].map((n) => ({ grams: Math.round(u.g * n * 10) / 10, label: `${n} ${n === 1 ? u.one : u.many}` })));
+}

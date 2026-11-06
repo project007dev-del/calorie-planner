@@ -6,8 +6,11 @@
 // }
 // A food entry keeps a snapshot of the per-100 g values it was logged with, so
 // editing or deleting a food later never changes your history.
-import { DEFAULT_PROFILE, DEFAULT_TARGETS, DEFAULT_BURN, DEFAULT_SUPPLEMENTS } from './plan.js';
+import { DEFAULT_PROFILE, DEFAULT_TARGETS, DEFAULT_BURN, DEFAULT_SUPPLEMENTS, MEALS } from './plan.js';
 import { isValidISO } from './util.js';
+
+const MEAL_IDS = MEALS.map((m) => m.id);
+const LAST_BACKUP_KEY = 'planner.lastBackup';
 
 export const STORAGE_KEY = 'planner.v1';
 export const VERSION = 1;
@@ -46,8 +49,19 @@ export function normalize(raw) {
     }
     const d = s.days[key];
     if (!Array.isArray(d.food)) d.food = [];
+    d.food = d.food.filter((e) => e && typeof e === 'object');
+    for (const e of d.food) if (!MEAL_IDS.includes(e.meal)) e.meal = 'snack'; // never hide food under an unknown meal
     if (!d.supps || typeof d.supps !== 'object') d.supps = {};
   }
+  // Supplements: older versions had `daily: true/false` instead of a schedule.
+  s.supplements = s.supplements
+    .filter((x) => x && typeof x === 'object' && String(x.name || '').trim())
+    .map((x) => {
+      const sup = { ...x, id: x.id || `s_${Math.random().toString(36).slice(2, 10)}` };
+      if (!sup.schedule || typeof sup.schedule !== 'object') sup.schedule = x.daily === false ? { type: 'asneeded' } : { type: 'daily' };
+      delete sup.daily;
+      return sup;
+    });
   s.version = VERSION;
   return s;
 }
@@ -77,6 +91,14 @@ export function getDay(state, date, create = false) {
   let d = state.days[date];
   if (!d && create) d = state.days[date] = { food: [], supps: {} };
   return d || null;
+}
+
+/** When this device last exported a backup (ISO date-time) – a device setting, not planner data. */
+export function getLastBackup(storage = globalThis.localStorage) {
+  try { return storage?.getItem(LAST_BACKUP_KEY) || null; } catch { return null; }
+}
+export function markBackedUp(storage = globalThis.localStorage) {
+  try { storage?.setItem(LAST_BACKUP_KEY, new Date().toISOString()); } catch { /* ignore */ }
 }
 
 export function exportJSON(state) {

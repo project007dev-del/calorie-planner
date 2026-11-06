@@ -33,32 +33,31 @@
   font-size: 16px;
   line-height: 1.4;
 }
-@media (prefers-color-scheme: dark) {
-  :root {
-    color-scheme: dark;
-    --bg: #0d0d0d;
-    --card: #1a1a19;
-    --text: #f0efec;
-    --text-2: #c3c2b7;
-    --muted: #96948d;
-    --line: #2c2c2a;
-    --axis: #383835;
-    --primary: #2dbfae;
-    --primary-ink: #04211e;
-    --primary-weak: #12302c;
-    --s1: #3987e5;
-    --s1-weak: #1d3557;
-    --s2: #d95926;
-    --s2-weak: #4a2617;
-    --s3: #199e70;
-    --s3-weak: #143d2f;
-    --good-text: #0ca30c;
-    --raw: #f5c46b;
-    --raw-bg: #3a2c10;
-    --cooked: #f3a27c;
-    --cooked-bg: #3d2116;
-    --shadow: none;
-  }
+/* Dark theme: set on <html data-theme="dark"> (follows the system unless chosen in the app). */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0d0d0d;
+  --card: #1a1a19;
+  --text: #f0efec;
+  --text-2: #c3c2b7;
+  --muted: #96948d;
+  --line: #2c2c2a;
+  --axis: #383835;
+  --primary: #2dbfae;
+  --primary-ink: #04211e;
+  --primary-weak: #12302c;
+  --s1: #3987e5;
+  --s1-weak: #1d3557;
+  --s2: #d95926;
+  --s2-weak: #4a2617;
+  --s3: #199e70;
+  --s3-weak: #143d2f;
+  --good-text: #0ca30c;
+  --raw: #f5c46b;
+  --raw-bg: #3a2c10;
+  --cooked: #f3a27c;
+  --cooked-bg: #3d2116;
+  --shadow: none;
 }
 
 /* ---------- Base ---------- */
@@ -93,6 +92,10 @@ button, input, select, textarea { font: inherit; color: inherit; }
   border-bottom: 1px solid var(--line);
 }
 .topbar-row, .datebar { max-width: 640px; margin: 0 auto; }
+.topbar-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.theme-toggle svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.theme-toggle .ic-sun, :root[data-theme="dark"] .theme-toggle .ic-moon { display: none; }
+:root[data-theme="dark"] .theme-toggle .ic-sun { display: block; }
 .app-title { font-size: 1.3rem; font-weight: 700; }
 .datebar { display: flex; align-items: center; gap: 6px; margin-top: 8px; }
 .date-pick { position: relative; flex: 1; text-align: center; font-weight: 600; padding: 6px 8px; border-radius: 10px; background: var(--card); border: 1px solid var(--line); cursor: pointer; }
@@ -283,6 +286,16 @@ details.tip summary { cursor: pointer; color: var(--primary); font-weight: 600; 
 .dots30 { display: grid; grid-template-columns: repeat(15, 1fr); gap: 3px; margin-top: 6px; }
 .dots30 i { aspect-ratio: 1 / 1; border-radius: 3px; background: var(--line); display: block; }
 .dots30 i.on { background: var(--s3); }
+.dots30 i.off { opacity: 0.5; transform: scale(0.5); }
+.dots30 i.miss { background: transparent; box-shadow: inset 0 0 0 1.5px var(--muted); }
+.dots30 i.due { background: transparent; box-shadow: inset 0 0 0 1.5px var(--primary); }
+.legend i.sq { border-radius: 3px; width: 10px; height: 10px; }
+.legend i.sq.on { background: var(--s3); }
+.legend i.sq.miss { background: transparent; box-shadow: inset 0 0 0 1.5px var(--muted); }
+.legend i.sq.off { background: var(--line); transform: scale(0.6); }
+.legend i.sq.due { background: transparent; box-shadow: inset 0 0 0 1.5px var(--primary); }
+.check.notdue .title, .check.notdue .meta { opacity: 0.7; }
+.weekpick span { padding: 9px 0; }
 
 /* ---------- Charts ---------- */
 .chart { position: relative; width: 100%; }
@@ -354,6 +367,8 @@ dialog.sheet::backdrop { background: rgba(0, 0, 0, 0.45); }
   transition: opacity 0.2s, transform 0.2s; z-index: 50; max-width: 90vw; text-align: center;
 }
 .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+.toast.has-action.show { pointer-events: auto; display: flex; align-items: center; gap: 10px; padding-right: 8px; }
+.toast-action { background: none; border: 0; color: inherit; font-weight: 800; letter-spacing: 0.03em; text-transform: uppercase; text-decoration: underline; padding: 6px 8px; min-height: 32px; cursor: pointer; }
 
 @media (max-width: 380px) {
   .grid4 { grid-template-columns: repeat(2, 1fr); }

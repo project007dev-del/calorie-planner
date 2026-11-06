@@ -2,15 +2,18 @@
 
 An installable phone app (PWA) built around the **Lean Muscle & Fat-Loss Plan · 1,900 kcal · 5-day split**.
 
-- **Food log:** enter what you eat **in grams, raw or cooked**. Calories and protein, carbs and fat are calculated for you.
+- **Food log:** enter what you eat **in grams, raw or cooked**. Calories and protein, carbs and fat are calculated for you. Portion buttons (e.g. "2 eggs · 100 g", "1 cup cooked rice") fill in the grams, the meal is picked from the time of day, and a deleted item can be undone.
 - **Your own foods:** add any food type by typing the values from the label (per 100 g or per serving), marked as raw or cooked.
 - **Food history:** see past days, averages for the last 7 or 30 days, and how often you hit your targets. You can also look up when you ate a particular food.
-- **Supplements:** daily checklist (creatine, protein shake, Centrum, backup 2nd shake) with streaks and 30-day history. Shakes count toward your calories automatically.
-- **Workouts:** the plan's Mon–Fri split with sets × reps, kg/reps per set, last-time values and a "add weight" hint, plus Saturday jogs.
+- **Supplements:** checklist with a schedule for each one: every day, every N days (e.g. every 2 days), certain weekdays, or only when needed. Streaks and the 30-day history follow the schedule (taken / missed / not due). Shakes count toward your calories automatically.
+- **Workouts:** the plan's Mon–Fri split with sets × reps, kg/reps per set, last-time values, a "Same as last time" button and an "add weight" hint, plus Saturday jogs.
 - **Workout history:** past sessions, a weekly summary, a 5-week calendar and a strength chart for each exercise.
 - **Expected weight change:** your kcal per day and kg per week, the date you'd reach your goal weight, a weight chart with a 7-day average, and the plan's adjustment alerts.
 
-On first launch the app asks for your stats (age, height, weight, goal, waist). They are stored **only on your device** (browser storage), never in the code. Use **Settings → Export backup** regularly.
+- **Light / dark mode:** follows your phone, or pick Light or Dark with the moon/sun button or in Settings → Appearance.
+- **Phone friendly:** the Back button/gesture closes pop-ups, works offline, and Settings has an Install button where the browser supports it.
+
+On first launch the app asks for your stats (age, height, weight, goal, waist). They are stored **only on your device** (browser storage), never in the code. Use **Settings → Back up now** regularly (on a phone it opens the share menu so you can save the file to Files or Google Drive); the app reminds you if it has been a while.
 
 ## Run it on your computer
 

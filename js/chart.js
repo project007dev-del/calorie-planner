@@ -5,6 +5,11 @@ import { diffDays, addDays, fmt, fmtDate } from './util.js';
 
 const M = { top: 14, right: 62, bottom: 28, left: 36 };
 
+// One page-wide listener: tapping anywhere outside a chart hides its tooltip.
+document.addEventListener('pointerdown', (e) => {
+  document.querySelectorAll('.chart').forEach((c) => { if (!c.contains(e.target)) c.hideTip?.(); });
+});
+
 function niceStep(range, target = 4) {
   const raw = range / target;
   const steps = [0.1, 0.2, 0.25, 0.5, 1, 2, 2.5, 5, 10, 20, 25, 50, 100, 200, 500];
@@ -149,7 +154,8 @@ export function timeChart(el, opt) {
   };
   svg.addEventListener('pointermove', (e) => show(nearest(e.clientX)));
   svg.addEventListener('pointerdown', (e) => show(nearest(e.clientX)));
-  svg.addEventListener('pointerleave', hide);
+  svg.addEventListener('pointerleave', (e) => { if (e.pointerType === 'mouse') hide(); }); // touch: keep it visible
+  el.hideTip = hide;
   svg.addEventListener('focus', () => show(idx));
   svg.addEventListener('blur', hide);
   svg.addEventListener('keydown', (e) => {

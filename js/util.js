@@ -57,6 +57,11 @@ export function fmt(n, digits = 0) {
   if (n === null || n === undefined || !Number.isFinite(Number(n))) return '–';
   return Number(n).toLocaleString(undefined, { maximumFractionDigits: digits, minimumFractionDigits: digits });
 }
+/** Up to `digits` decimals, but no trailing zeros (20 → "20", 22.5 → "22.5"). */
+export function fmtUpTo(n, digits = 1) {
+  if (n === null || n === undefined || !Number.isFinite(Number(n))) return '–';
+  return Number(n).toLocaleString(undefined, { maximumFractionDigits: digits });
+}
 /** Format with sign, e.g. +0.12 / −0.40 (uses a real minus sign). */
 export function fmtSigned(n, digits = 0) {
   if (!Number.isFinite(n)) return '–';

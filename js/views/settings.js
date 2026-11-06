@@ -1,9 +1,10 @@
 // Settings: profile, targets, burn model, supplements, foods, backup.
-import { esc, fmt, num, numOrNull, uid, todayISO } from '../util.js';
-import { exportJSON, importJSON, defaultState } from '../store.js';
+import { esc, fmt, fmtDate, fmtLongDate, num, numOrNull, uid, todayISO, isValidISO, diffDays } from '../util.js';
+import { importJSON, defaultState, getLastBackup } from '../store.js';
 import { WORKOUT_DAYS, profileComplete } from '../plan.js';
-import { bmrMifflin, dayBurn, currentWeight, suggestBaseKcal } from '../calc.js';
-import { openSheet, confirmSheet, toast, formValues, download } from '../ui.js';
+import { bmrMifflin, dayBurn, currentWeight, suggestBaseKcal, suppSchedule, scheduleLabel, nextDue } from '../calc.js';
+import { openSheet, confirmSheet, toast, formValues, backupNow } from '../ui.js';
+import { getThemeMode, setThemeMode } from '../theme.js';
 
 const field = (name, label, value, attrs = 'inputmode="decimal"') =>
   `<label class="field"><span>${label}</span><input class="input num" name="${name}" value="${esc(value ?? '')}" ${attrs}></label>`;
@@ -24,7 +25,19 @@ export function render(root, ctx) {
   }
   const macroSum = num(t.protein) * 4 + num(t.carbs) * 4 + num(t.fat) * 9;
 
+  const mode = getThemeMode();
+  const standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+  const lastBackup = getLastBackup();
+  const backupDays = lastBackup ? diffDays(lastBackup.slice(0, 10), todayISO()) : null;
+
   root.innerHTML = `
+    <section class="card">
+      <div class="card-head"><div><h2>Appearance</h2><div class="sub">Also switch with the moon/sun button at the top</div></div></div>
+      <div class="radio-row" role="radiogroup" aria-label="Theme">
+        ${[['system', 'System'], ['light', 'Light'], ['dark', 'Dark']].map(([v, l]) => `<label><input type="radio" name="theme" value="${v}" ${mode === v ? 'checked' : ''}><span>${l}</span></label>`).join('')}
+      </div>
+    </section>
+
     <section class="card" data-form="profile">
       <div class="card-head"><h2>Profile</h2></div>
       <div class="grid2">
@@ -73,7 +86,7 @@ export function render(root, ctx) {
       <div class="card-head"><div><h2>Supplements</h2><div class="sub">Calories from shakes are counted automatically when ticked</div></div>
         <button class="btn btn-sm btn-primary" data-addsupp>+ Add</button></div>
       <ul class="list">${state.supplements.map((s) => `<li><button class="item" data-supp="${esc(s.id)}">
-        <span class="grow"><span class="title">${esc(s.name)}</span> ${s.daily ? '' : '<span class="badge neutral">backup</span>'}<br>
+        <span class="grow"><span class="title">${esc(s.name)}</span> <span class="badge neutral">${esc(scheduleLabel(s))}</span><br>
           <span class="meta">${esc(s.dose || '')}${num(s.kcal) ? ` · ${fmt(s.kcal)} kcal · P ${fmt(s.protein)} g` : ''}</span></span><span class="muted">›</span></button></li>`).join('')}</ul>
     </section>
 
@@ -85,18 +98,20 @@ export function render(root, ctx) {
     <section class="card">
       <div class="card-head"><div><h2>Backup</h2><div class="sub">Your data is saved only on this device</div></div></div>
       <div class="row wrap">
-        <button class="btn" data-export>Export backup</button>
+        <button class="btn btn-primary" data-export>Back up now</button>
         <label class="btn">Import backup<input type="file" accept="application/json,.json" data-import hidden></label>
         <button class="btn btn-danger" data-reset>Reset everything</button>
       </div>
-      <p class="muted tiny" style="margin-top:8px">Export regularly, and use Import to move your history to another phone or browser. ${Object.keys(state.days).length} day(s) stored.</p>
+      <p class="small" style="margin-top:8px">Last backup: <b>${lastBackup ? `${esc(fmtLongDate(lastBackup.slice(0, 10)))}${backupDays === 0 ? ' (today)' : ` (${backupDays} day${backupDays === 1 ? '' : 's'} ago)`}` : 'never'}</b></p>
+      <p class="muted tiny">On a phone, Back up opens the share menu so you can save the file to Files, Google Drive or send it to yourself. Use Import to move your history to another phone or browser. ${Object.keys(state.days).length} day(s) stored.</p>
     </section>
 
     <section class="card">
-      <div class="card-head"><h2>Install on your phone</h2></div>
-      <p class="small"><b>Android (Chrome):</b> menu ⋮ → <i>Install app</i> / <i>Add to Home screen</i>.<br>
+      <div class="card-head"><h2>Install on your phone</h2>${ctx.installPrompt && !standalone ? '<button class="btn btn-sm btn-primary" data-install>Install app</button>' : ''}</div>
+      ${standalone ? '<p class="small"><span class="status good">Installed</span> You’re using the installed app. It works offline.</p>' : `
+      <p class="small"><b>Android (Chrome):</b> ${ctx.installPrompt ? 'tap <b>Install app</b> above, or ' : ''}menu ⋮ → <i>Install app</i> / <i>Add to Home screen</i>.<br>
       <b>iPhone (Safari):</b> Share → <i>Add to Home Screen</i>.</p>
-      <p class="muted tiny">Works offline once installed. Installing needs the app to be opened from an https:// address (or localhost on a computer).</p>
+      <p class="muted tiny">Works offline once installed. Installing needs the app to be opened from an https:// address (or localhost on a computer).</p>`}
       <p class="muted tiny">This is a general fitness tool based on your plan, not medical advice. If you have kidney or liver disease, ask your doctor before increasing protein or taking creatine.</p>
     </section>`;
 
@@ -129,12 +144,14 @@ export function render(root, ctx) {
   root.querySelector('[data-addsupp]').addEventListener('click', () => openSupplement(ctx, null));
   root.querySelectorAll('[data-supp]').forEach((b2) => b2.addEventListener('click', () => openSupplement(ctx, state.supplements.find((s) => s.id === b2.dataset.supp))));
 
-  root.querySelector('[data-export]').addEventListener('click', () => {
-    download(`planner-backup-${todayISO()}.json`, exportJSON(state));
-    toast('Backup downloaded');
+  root.querySelectorAll('[name=theme]').forEach((r) => r.addEventListener('change', () => setThemeMode(r.value)));
+
+  root.querySelector('[data-export]').addEventListener('click', async () => {
+    if (await backupNow(state)) ctx.render();
   });
   root.querySelector('[data-import]').addEventListener('change', async (e) => {
-    const file = e.target.files?.[0];
+    const input = e.target;
+    const file = input.files?.[0];
     if (!file) return;
     try {
       const next = importJSON(await file.text());
@@ -144,8 +161,18 @@ export function render(root, ctx) {
       toast('Backup imported');
       ctx.render();
     } catch (err) {
-      toast(err.message || 'Could not read that file');
+      toast(err instanceof SyntaxError ? 'That file isn’t a valid backup' : err.message || 'Could not read that file');
+    } finally {
+      input.value = ''; // so choosing the same file again still works
     }
+  });
+  root.querySelector('[data-install]')?.addEventListener('click', async () => {
+    const prompt = ctx.installPrompt;
+    if (!prompt) return;
+    prompt.prompt();
+    try { await prompt.userChoice; } catch { /* dismissed */ }
+    ctx.installPrompt = null;
+    ctx.render();
   });
   root.querySelector('[data-reset]').addEventListener('click', async () => {
     if (!(await confirmSheet('Reset everything', 'Delete all food logs, workouts, weigh-ins, custom foods and settings on this device? Export a backup first if you might need it.', 'Delete all'))) return;
@@ -156,15 +183,36 @@ export function render(root, ctx) {
   });
 }
 
+const WEEK = [[1, 'M'], [2, 'T'], [3, 'W'], [4, 'T'], [5, 'F'], [6, 'S'], [0, 'S']];
+const WEEK_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
 function openSupplement(ctx, sup) {
   const { state } = ctx;
-  const s = sup || { name: '', dose: '', daily: true, kcal: 0, protein: 0, carbs: 0, fat: 0 };
+  const s = sup || { name: '', dose: '', schedule: { type: 'daily' }, kcal: 0, protein: 0, carbs: 0, fat: 0 };
+  const sc = suppSchedule(s);
+  const today = todayISO();
+  const every = sc.type === 'interval' ? sc.every : 2;
+  const start = sc.type === 'interval' && isValidISO(sc.start) ? sc.start : today;
+  const days = sc.type === 'weekdays' ? sc.days || [] : [];
   openSheet({
     title: sup ? 'Edit supplement' : 'New supplement',
     body: `
-      <label class="field"><span>Name</span><input class="input" name="name" maxlength="60" value="${esc(s.name)}"></label>
-      <label class="field"><span>Dose / note</span><input class="input" name="dose" maxlength="100" value="${esc(s.dose)}"></label>
-      <label class="check"><input type="checkbox" name="daily" ${s.daily ? 'checked' : ''}><span><span class="title">Take every day</span><br><span class="meta">Untick for backups like the 2nd shake (no streak)</span></span></label>
+      <label class="field"><span>Name</span><input class="input" name="name" maxlength="60" value="${esc(s.name)}" placeholder="e.g. Vitamin D, Fish oil"></label>
+      <label class="field"><span>Dose / note</span><input class="input" name="dose" maxlength="100" value="${esc(s.dose)}" placeholder="e.g. 1 capsule after breakfast"></label>
+      <label class="field"><span>How often</span><select class="input" name="schedType">
+        <option value="daily" ${sc.type === 'daily' ? 'selected' : ''}>Every day</option>
+        <option value="interval" ${sc.type === 'interval' ? 'selected' : ''}>Every few days (e.g. every 2 days)</option>
+        <option value="weekdays" ${sc.type === 'weekdays' ? 'selected' : ''}>On certain days of the week</option>
+        <option value="asneeded" ${sc.type === 'asneeded' ? 'selected' : ''}>Only when needed (no streak)</option>
+      </select></label>
+      <div class="grid2" data-for="interval">
+        <label class="field"><span>Every … days</span><input class="input num" name="every" inputmode="numeric" value="${esc(every)}"></label>
+        <label class="field"><span>Starting on</span><input class="input" type="date" name="start" value="${start}"></label>
+      </div>
+      <div class="field" data-for="weekdays"><span>Days</span>
+        <div class="radio-row weekpick">${WEEK.map(([d, l]) => `<label title="${WEEK_NAMES[d]}"><input type="checkbox" name="wd" value="${d}" ${days.includes(d) ? 'checked' : ''} aria-label="${WEEK_NAMES[d]}"><span>${l}</span></label>`).join('')}</div>
+      </div>
+      <p class="small muted" data-next></p>
       <p class="muted small">Nutrition per dose (leave 0 for pills / creatine):</p>
       <div class="grid2">
         ${field('kcal', 'kcal', s.kcal)}${field('protein', 'Protein (g)', s.protein)}${field('carbs', 'Carbs (g)', s.carbs)}${field('fat', 'Fat (g)', s.fat)}
@@ -174,14 +222,47 @@ function openSupplement(ctx, sup) {
         <button type="button" class="btn btn-primary" data-ok>Save</button>
       </div>`,
     onMount(dlg) {
+      const typeSel = dlg.querySelector('[name=schedType]');
+      const readSchedule = () => {
+        const type = typeSel.value;
+        if (type === 'interval') {
+          const n = Math.round(num(dlg.querySelector('[name=every]').value));
+          const st = dlg.querySelector('[name=start]').value;
+          if (!(n >= 2 && n <= 60)) return { error: 'Choose every 2 to 60 days (or pick Every day)' };
+          if (!isValidISO(st)) return { error: 'Pick the first day to take it' };
+          return { schedule: { type, every: n, start: st } };
+        }
+        if (type === 'weekdays') {
+          const picked = [...dlg.querySelectorAll('[name=wd]:checked')].map((c) => Number(c.value));
+          if (!picked.length) return { error: 'Pick at least one day' };
+          return { schedule: picked.length === 7 ? { type: 'daily' } : { type, days: picked } };
+        }
+        return { schedule: { type } };
+      };
+      const refresh = () => {
+        dlg.querySelectorAll('[data-for]').forEach((el) => el.classList.toggle('hidden', el.dataset.for !== typeSel.value));
+        const { schedule, error } = readSchedule();
+        const hint = dlg.querySelector('[data-next]');
+        if (error || schedule.type === 'asneeded') { hint.textContent = schedule?.type === 'asneeded' ? 'No reminder or streak – tick it on the days you take it.' : ''; return; }
+        const nd = nextDue({ schedule }, today);
+        hint.textContent = nd ? `${scheduleLabel({ schedule })} · next due ${nd === today ? 'today' : fmtDate(nd, { weekday: 'long', month: 'short', day: 'numeric' })}` : '';
+      };
+      dlg.querySelectorAll('select, input').forEach((el) => { el.addEventListener('change', refresh); el.addEventListener('input', refresh); });
+      refresh();
+      if (!sup) dlg.querySelector('[name=name]').focus();
+
       dlg.querySelector('[data-ok]').addEventListener('click', () => {
         const v = formValues(dlg);
         if (!v.name.trim()) { toast('Give it a name'); return; }
+        const { schedule, error } = readSchedule();
+        if (error) { toast(error); return; }
         const rec = {
           id: sup?.id || `s_${uid()}`,
-          name: v.name.trim(), dose: v.dose.trim(), daily: !!v.daily,
+          name: v.name.trim(), dose: v.dose.trim(), schedule,
           kcal: Math.max(0, num(v.kcal)), protein: Math.max(0, num(v.protein)), carbs: Math.max(0, num(v.carbs)), fat: Math.max(0, num(v.fat)),
         };
+        // New supplements are tracked from today (history before it isn't counted as missed).
+        if (sup?.since || !sup) rec.since = sup?.since || today;
         if (sup) state.supplements = state.supplements.map((x) => (x.id === sup.id ? rec : x));
         else state.supplements.push(rec);
         ctx.save();

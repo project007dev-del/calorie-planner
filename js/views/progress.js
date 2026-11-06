@@ -2,8 +2,8 @@
 import { esc, fmt, fmtSigned, fmtDate, fmtLongDate, addDays, todayISO, weekStart, parseISO, numOrNull, isValidISO, diffDays } from '../util.js';
 import { getDay } from '../store.js';
 import {
-  projection, scaleTrend, planAlerts, weightEntries, waistEntries, rollingAverage, streak, suppTaken,
-  adherence, hasFood, hasWorkout, dayIntake,
+  projection, scaleTrend, planAlerts, weightEntries, waistEntries, rollingAverage, hasFood, hasWorkout,
+  dayIntake, isScheduled, isDue, suppSchedule, suppStreak, suppAdherence, scheduleLabel, allDueTaken,
 } from '../calc.js';
 import { alertBox, openSheet, toast } from '../ui.js';
 import { timeChart } from '../chart.js';
@@ -124,45 +124,58 @@ function projectionCard(p, trend, win, state) {
 }
 
 function supplementsCard(state, today) {
+  const first = Object.keys(state.days).sort()[0];
+  const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
   const rows = state.supplements.map((s) => {
-    const pred = suppTaken(s.id);
-    const st = streak(state, today, pred);
-    const ad = adherence(state, today, pred, 30);
+    const scheduled = isScheduled(s);
+    const daily = suppSchedule(s).type === 'daily';
+    const st = suppStreak(state, s, today);
+    const ad = suppAdherence(state, s, today, 30);
     const dots = Array.from({ length: 30 }, (_, i) => {
       const d = addDays(today, i - 29);
-      return `<i class="${pred(state.days[d]) ? 'on' : ''}" title="${esc(fmtDate(d))}${pred(state.days[d]) ? ' ✓' : ''}"></i>`;
+      const took = !!state.days[d]?.supps?.[s.id];
+      const due = scheduled && isDue(s, d);
+      const tracked = !!first && d >= first && (!s.since || d >= s.since);
+      const cls = took ? 'on' : !due ? 'off' : d === today ? 'due' : tracked ? 'miss' : 'off';
+      const what = took ? 'taken' : !due ? 'not due' : d === today ? 'due today' : tracked ? 'missed' : 'before tracking';
+      return `<i class="${cls}" title="${esc(fmtDate(d))}: ${what}"></i>`;
     }).join('');
+    const summary = !scheduled
+      ? `Used ${plural(ad.extra, 'time')} in the last ${plural(ad.days, 'day')}`
+      : ad.due
+        ? `Taken ${ad.taken} of ${plural(ad.due, daily ? 'scheduled day' : 'scheduled dose')}${ad.extra ? ` · ${ad.extra} extra` : ''}`
+        : 'Nothing due yet';
     return `<li style="padding:10px 0">
       <div class="row between"><span class="strong">${esc(s.name)}</span>
-        ${s.daily ? `<span class="status ${st ? 'good' : ''}">${st}-day streak</span>` : '<span class="badge neutral">backup</span>'}</div>
-      <div class="muted small">${s.daily ? `Taken ${ad.count} of the last ${ad.days} day${ad.days !== 1 ? 's' : ''}` : `Used ${ad.count} time${ad.count !== 1 ? 's' : ''} in the last ${ad.days} day${ad.days !== 1 ? 's' : ''}`}</div>
-      <div class="dots30" role="img" aria-label="${esc(s.name)}: last 30 days, ${ad.count} taken">${dots}</div>
+        ${scheduled ? `<span class="status ${st ? 'good' : ''}">${daily ? `${st}-day streak` : `${st} in a row`}</span>` : '<span class="badge neutral">as needed</span>'}</div>
+      <div class="muted small">${esc(scheduleLabel(s))} · ${summary}</div>
+      <div class="dots30" role="img" aria-label="${esc(s.name)}, last 30 days: ${summary}">${dots}</div>
     </li>`;
   }).join('');
   return `<section class="card">
     <div class="card-head"><div><h2>Supplement history</h2><div class="sub">Last 30 days · oldest → today</div></div></div>
     <ul class="list">${rows || '<li class="empty">No supplements set up.</li>'}</ul>
+    ${rows ? '<div class="legend"><span><i class="sq on"></i>Taken</span><span><i class="sq miss"></i>Missed</span><span><i class="sq due"></i>Due today</span><span><i class="sq off"></i>Not due</span></div>' : ''}
   </section>`;
 }
 
 function calendarCard(state, today) {
   const start = addDays(weekStart(today), -28);
-  const daily = state.supplements.filter((s) => s.daily);
   const cells = Array.from({ length: 35 }, (_, i) => {
     const d = addDays(start, i);
     const day = state.days[d];
     const food = hasFood(day);
-    const supps = daily.length > 0 && daily.every((s) => day?.supps?.[s.id]);
+    const supps = allDueTaken(state, d);
     const work = hasWorkout(day);
     const future = d > today;
-    const label = `${fmtLongDate(d)}${food ? ', food logged' : ''}${supps ? ', all supplements' : ''}${work ? ', workout' : ''}`;
+    const label = `${fmtLongDate(d)}${food ? ', food logged' : ''}${supps ? ', all due supplements taken' : ''}${work ? ', workout' : ''}`;
     return `<button ${future ? 'disabled' : ''} class="${d === today ? 'today' : ''} ${future ? 'future' : ''}" data-day="${d}" aria-label="${esc(label)}">
       ${parseISO(d).getDate()}<span class="marks">${food ? '<i class="mk-food"></i>' : ''}${supps ? '<i class="mk-supp"></i>' : ''}${work ? '<i class="mk-work"></i>' : ''}</span></button>`;
   }).join('');
   return `<section class="card">
     <div class="card-head"><div><h2>Calendar</h2><div class="sub">Tap a day to open it</div></div></div>
     <div class="cal">${['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d) => `<div class="h">${d}</div>`).join('')}${cells}</div>
-    <div class="legend"><span><i class="mk-food"></i>Food logged</span><span><i class="mk-supp"></i>All daily supplements</span><span><i class="mk-work"></i>Workout</span></div>
+    <div class="legend"><span><i class="mk-food"></i>Food logged</span><span><i class="mk-supp"></i>All due supplements</span><span><i class="mk-work"></i>Workout</span></div>
   </section>`;
 }
 
