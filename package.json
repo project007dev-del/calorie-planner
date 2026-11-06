@@ -1,7 +1,7 @@
 {
   "name": "calorie-exercise-planner",
-  "version": "1.1.0",
-  "description": "Installable phone app (PWA) for the 1,900 kcal lean muscle & fat-loss plan: food log (raw/cooked grams), supplements, workouts, weight projection.",
+  "version": "1.2.0",
+  "description": "Offline calorie and exercise planner with profile-based nutrition guidance, Filipino foods, food logs, workouts and weight projections.",
   "private": true,
   "type": "module",
   "scripts": {

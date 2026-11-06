@@ -1,28 +1,64 @@
 // Settings: profile, targets, burn model, supplements, foods, backup.
 import { esc, fmt, fmtDate, fmtLongDate, num, numOrNull, uid, todayISO, isValidISO, diffDays } from '../util.js';
 import { importJSON, defaultState, getLastBackup } from '../store.js';
-import { WORKOUT_DAYS, profileComplete } from '../plan.js';
-import { bmrMifflin, dayBurn, currentWeight, suggestBaseKcal, suppSchedule, scheduleLabel, nextDue } from '../calc.js';
+import { DEFAULT_BURN, profileComplete } from '../plan.js';
+import { bmrMifflin, currentWeight, suggestBaseKcal, suppSchedule, scheduleLabel, nextDue } from '../calc.js';
+import { ACTIVITY_LEVELS, DIET_STYLES, dailyRecommendation } from '../recommendations.js';
+import { parseSettings } from '../settings-model.js';
 import { openSheet, confirmSheet, toast, formValues, backupNow } from '../ui.js';
 import { getThemeMode, setThemeMode } from '../theme.js';
 
 const field = (name, label, value, attrs = 'inputmode="decimal"') =>
   `<label class="field"><span>${label}</span><input class="input num" name="${name}" value="${esc(value ?? '')}" ${attrs}></label>`;
+const select = (name, label, value, options) => `<label class="field"><span>${label}</span><select class="input" name="${name}">${options.map(([id, text]) => `<option value="${id}" ${value === id ? 'selected' : ''}>${text}</option>`).join('')}</select></label>`;
 
-export function render(root, ctx) {
+function recommendationCard(rec) {
+  if (!rec.available) return `<div class="recommendation"><h3>Your recommendation</h3><p class="small">${esc(rec.reason)}</p></div>`;
+  const goalLabel = { lose: 'Gradual fat loss', maintain: 'Maintain weight', gain: 'Gradual weight gain' }[rec.goal];
+  return `<div class="recommendation" data-recommendation>
+    <div class="small muted">Based on your saved profile and burn settings</div>
+    <h3>${esc(rec.style.label)}</h3>
+    <p class="small">${goalLabel} · using ${fmt(rec.weight, 1)} kg (recent 7-day average when available).</p>
+    ${rec.automaticStyle ? `<p class="small">${rec.style.id === 'protein' ? 'Suggested because you plan regular strength training while changing weight.' : 'Suggested as a varied everyday eating pattern for your current goal.'} You can choose a different diet style in Profile.</p>` : ''}
+    <div class="recommendation-stats num">
+      <div><b>${fmt(rec.targets.kcal)}</b><span>kcal / day</span></div>
+      <div><b>${fmt(rec.targets.protein)} g</b><span>protein</span></div>
+      <div><b>${fmt(rec.targets.carbs)} g</b><span>carbs</span></div>
+      <div><b>${fmt(rec.targets.fat)} g</b><span>fat</span></div>
+    </div>
+    <p class="small">Estimated maintenance: <b>${fmt(rec.maintenance)} kcal/day</b>, including ${rec.strengthDays} lifting days and ${fmt(rec.cardioMinutes)} jog minutes per week. ${rec.goal === 'maintain' ? 'The starting target matches maintenance.' : `The starting target uses a ${rec.goal === 'lose' ? '10% deficit (up to 300 kcal)' : '5% surplus (up to 200 kcal)'}.`}</p>
+    ${Math.abs(rec.base - rec.suggestedBase) > 20 ? `<p class="small">Your saved everyday burn is ${fmt(rec.base)} kcal; your profile estimate is ${fmt(rec.suggestedBase)} kcal. Review <a href="#/settings/burn">Calorie burn</a> if your activity or profile has changed.</p>` : ''}
+    <p class="small">Protein starts at ${rec.proteinPerKg} g/kg; fat is about 30% of calories and carbs fill the rest.${rec.proteinCapped ? ' Protein is capped at 30% of calories to leave room for other nutrients.' : ''}${rec.floorApplied ? ' The calorie target was raised to the app’s lower limit; it may not produce weight loss.' : ''}</p>
+    <button class="btn btn-primary btn-block" type="button" data-fill-targets>Fill suggested targets</button>
+    <p class="tiny muted">Review the fields below, then Save targets. Save profile or burn changes first to refresh this suggestion.</p>
+    <details class="guidance"><summary>Meal ideas, method &amp; sources</summary>
+      <p class="small">Use Pinggang Pinoy: half your plate vegetables and fruit, about one-third rice or alternatives, and one-sixth fish or other protein foods. Adjust portions to your daily targets.</p>
+      ${rec.meals.map((line) => `<p class="small">${esc(line)}</p>`).join('')}
+      <p class="small">Choose water often; favor minimally processed foods and limit salty sauces and sugary drinks. Build toward 150–300 minutes of moderate activity (or 75–150 vigorous minutes) weekly, plus strength work on at least 2 days.</p>
+      <p class="tiny muted">These are adult starting estimates, not a prescribed diet. Review your weight trend, hunger and recovery after 2–3 weeks. Activity factors, calorie adjustments, 30% fat and the 1,200 / 1,500 kcal lower limits are planner choices; no single diet is best for everyone.</p>
+      <ul class="source-links small">
+        <li><a href="https://www.fnri.dost.gov.ph/images/sources/PinggangPinoy-Adult.pdf" target="_blank" rel="noopener noreferrer">DOST-FNRI: Pinggang Pinoy adult guide</a></li>
+        <li><a href="https://www.who.int/news-room/fact-sheets/detail/healthy-diet" target="_blank" rel="noopener noreferrer">WHO: healthy diet</a></li>
+        <li><a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC5477153/" target="_blank" rel="noopener noreferrer">ISSN: protein for healthy exercising adults (1.4–2.0 g/kg)</a></li>
+        <li><a href="https://www.who.int/publications/i/item/9789240015128" target="_blank" rel="noopener noreferrer">WHO: physical activity guidelines</a></li>
+      </ul>
+    </details>
+  </div>`;
+}
+
+export function render(root, ctx, params = []) {
   const { state } = ctx;
   const p = state.profile, t = state.targets, b = state.burn;
   const weight = currentWeight(state, todayISO());
   const hasStats = profileComplete(p);
-  const bmr = hasStats ? bmrMifflin({ ...p, weightKg: weight }) : null;
-  const suggested = hasStats ? suggestBaseKcal(p, weight) : null;
-
-  // Weekly average burn if every planned session is done (jog 30 min on Saturday).
-  let weekTotal = 0;
-  for (const d of WORKOUT_DAYS) {
-    const exercises = Object.fromEntries(d.exercises.map((e) => [e.id, { done: true }]));
-    weekTotal += dayBurn({ workout: { planDayId: d.id, exercises, cardio: { done: d.type === 'cardio', minutes: 30 } } }, b, weight).total;
-  }
+  const canEstimate = hasStats && num(p.age) >= 18 && p.nutritionContext !== 'special';
+  const bmr = canEstimate ? bmrMifflin({ ...p, weightKg: weight }) : null;
+  const suggested = canEstimate ? suggestBaseKcal(p, weight) : null;
+  const activity = ACTIVITY_LEVELS.find((a) => a.id === p.activityLevel) || ACTIVITY_LEVELS[1];
+  const rec = dailyRecommendation(state, todayISO());
+  const strengthExtra = Math.max(0, num(b.strengthMet) - 1) * weight * num(b.strengthMinutes) / 60;
+  const cardioExtra = Math.max(0, num(b.jogMet) - 1) * weight * num(p.cardioMinutes) / 60;
+  const weeklyBurn = num(b.baseKcal) + (num(p.strengthDays) * strengthExtra + cardioExtra) / 7;
   const macroSum = num(t.protein) * 4 + num(t.carbs) * 4 + num(t.fat) * 9;
 
   const mode = getThemeMode();
@@ -31,6 +67,12 @@ export function render(root, ctx) {
   const backupDays = lastBackup ? diffDays(lastBackup.slice(0, 10), todayISO()) : null;
 
   root.innerHTML = `
+    <nav class="chips settings-shortcuts" aria-label="Settings sections">
+      <a class="chip" href="#/settings/profile" data-jump="profile-settings">Profile</a>
+      <a class="chip" href="#/settings/targets" data-jump="target-settings">Daily targets</a>
+      <a class="chip" href="#/settings/burn" data-jump="burn-settings">Calorie burn</a>
+      <a class="chip" href="#/settings/backup" data-jump="backup-settings">Backup</a>
+    </nav>
     <section class="card">
       <div class="card-head"><div><h2>Appearance</h2><div class="sub">Also switch with the moon/sun button at the top</div></div></div>
       <div class="radio-row" role="radiogroup" aria-label="Theme">
@@ -38,7 +80,7 @@ export function render(root, ctx) {
       </div>
     </section>
 
-    <section class="card" data-form="profile">
+    <section class="card" id="profile-settings" data-form="profile">
       <div class="card-head"><h2>Profile</h2></div>
       <div class="grid2">
         ${field('age', 'Age', p.age, 'inputmode="numeric"')}
@@ -49,36 +91,52 @@ export function render(root, ctx) {
         ${field('startWaistCm', 'Starting waist (cm)', p.startWaistCm)}
         ${field('waistGoalCm', 'Waist goal (cm)', p.waistGoalCm)}
       </div>
+      <div class="stack profile-preferences">
+        ${select('goalMode', 'Nutrition goal', p.goalMode, [['auto', 'Use my current and goal weight'], ['lose', 'Gradual fat loss'], ['maintain', 'Maintain weight'], ['gain', 'Gradual weight gain']])}
+        ${select('dietStyle', 'Preferred diet style', p.dietStyle, DIET_STYLES.map((d) => [d.id, d.label]))}
+        ${select('activityLevel', 'Everyday movement (outside workouts)', activity.id, ACTIVITY_LEVELS.map((a) => [a.id, a.label]))}
+        <div class="grid2">${field('strengthDays', 'Planned lifting days / week', p.strengthDays, 'type="number" min="0" max="7" step="1" inputmode="numeric"')}${field('cardioMinutes', 'Planned jog minutes / week', p.cardioMinutes, 'type="number" min="0" max="1260" inputmode="numeric"')}</div>
+        ${select('nutritionContext', 'Nutrition guidance', p.nutritionContext, [['general', 'General adult fitness'], ['special', 'Pregnancy, breastfeeding or a diet-related condition']])}
+      </div>
       <p class="muted tiny" style="margin-top:6px">${num(p.heightCm) > 0 ? `Waist under half your height (${fmt(num(p.heightCm) / 2, 1)} cm) is a useful long-term health marker. ` : ''}Waist fields are optional.</p>
+      <p class="muted tiny">Planned sessions help estimate maintenance; they do not change the workout split or count as completed workouts.</p>
       <button class="btn btn-primary" style="margin-top:8px" data-save="profile">Save profile</button>
     </section>
 
-    <section class="card" data-form="targets">
+    <section class="card" id="target-settings" data-form="targets">
       <div class="card-head"><h2>Daily targets</h2></div>
+      ${recommendationCard(rec)}
       <div class="grid2">
         ${field('kcal', 'Calories (kcal)', t.kcal)}
         ${field('protein', 'Protein (g)', t.protein)}
         ${field('carbs', 'Carbs (g)', t.carbs)}
         ${field('fat', 'Fat (g)', t.fat)}
       </div>
-      <p class="muted tiny" style="margin-top:6px">Macros add up to ${fmt(macroSum)} kcal. Plan rule: losing faster than ~0.5–0.7 kg/week with poor recovery → add 100–200 kcal; weight and waist flat for 3 weeks → reduce 100–150 kcal.</p>
+      <p class="muted tiny" style="margin-top:6px" data-macro-total>Macros add up to ${fmt(macroSum)} kcal.</p>
+      <p class="small" data-target-feedback aria-live="polite"></p>
       <button class="btn btn-primary" style="margin-top:8px" data-save="targets">Save targets</button>
     </section>
 
-    <section class="card" data-form="burn">
+    <section class="card" id="burn-settings" data-form="burn">
       <div class="card-head"><div><h2>Calorie burn estimate</h2><div class="sub">Used for expected weight change</div></div></div>
-      <div class="grid2">
-        ${field('baseKcal', 'Everyday burn without workouts (kcal)', b.baseKcal)}
+      ${field('baseKcal', 'Everyday burn without workouts (kcal)', b.baseKcal)}
+      <p class="small">${canEstimate ? `From your profile: resting burn ≈ <b>${fmt(bmr)} kcal</b> × ${activity.factor} for daily movement = <b>${fmt(suggested)} kcal/day</b>.` : 'Complete an adult profile to see a suggested everyday burn.'}</p>
+      ${canEstimate ? `<button class="btn btn-sm" type="button" data-suggest>Fill ${fmt(suggested)} kcal from my profile</button>` : ''}
+      <div class="grid2 profile-preferences">
+        ${select('strengthPreset', 'Lifting intensity preset', '', [['', 'Choose preset…'], ['3.5', 'Multiple exercises · 3.5 MET'], ['6', 'Vigorous lifting · 6 MET']])}
+        ${select('jogPreset', 'Jog intensity preset', '', [['', 'Choose preset…'], ['6', 'Walk / jog mix · 6 MET'], ['7.5', 'General jogging · 7.5 MET'], ['8.5', 'Running 8 km/h · 8.5 MET']])}
+        ${field('strengthMinutes', 'Lifting session length (min)', b.strengthMinutes)}
+      </div>
+      <details class="guidance"><summary>Advanced burn settings</summary><div class="grid2 profile-preferences">
         ${field('kcalPerKg', 'kcal per kg of body weight', b.kcalPerKg)}
         ${field('strengthMet', 'Lifting intensity (MET)', b.strengthMet)}
-        ${field('strengthMinutes', 'Lifting session length (min)', b.strengthMinutes)}
-        ${field('jogMet', 'Easy jog intensity (MET)', b.jogMet)}
-      </div>
-      <p class="small" style="margin-top:8px">With all 5 lifting days + a 30-min Saturday jog, your average burn is <b>${fmt(weekTotal / 7)} kcal/day</b>.</p>
-      <p class="muted tiny">Workouts add (MET − 1) × ${fmt(weight, 1)} kg × hours, only when ticked done.${hasStats ? ` From your stats: BMR (Mifflin-St Jeor) = ${fmt(bmr)} kcal, so everyday burn ≈ BMR × 1.4 = ${fmt(suggested)} kcal.` : ' Enter your stats in Profile to get a suggested everyday burn.'}</p>
+        ${field('jogMet', 'Jog intensity (MET)', b.jogMet)}
+      </div></details>
+      <p class="small" style="margin-top:8px" data-burn-preview aria-live="polite">Saved settings: rest day ${fmt(b.baseKcal)} kcal · full lifting session +${fmt(strengthExtra)} kcal · planned weekly average ${fmt(weeklyBurn)} kcal/day.</p>
+      <p class="muted tiny">Workouts add (MET − 1) × ${fmt(weight, 1)} kg × hours, only when ticked done. Everyday movement excludes these sessions, so exercise is counted once. MET values and the 7,700 kcal/kg conversion are estimates; session effort and recovery vary.</p>
+      <p class="tiny"><a href="https://pacompendium.com/conditioning-exercise/" target="_blank" rel="noopener noreferrer">Compendium: lifting METs</a> · <a href="https://pacompendium.com/running/" target="_blank" rel="noopener noreferrer">Jogging METs</a> · <a href="https://pubmed.ncbi.nlm.nih.gov/2305711/" target="_blank" rel="noopener noreferrer">Mifflin-St Jeor study</a></p>
       <div class="row wrap" style="margin-top:8px">
         <button class="btn btn-primary" data-save="burn">Save burn settings</button>
-        ${hasStats && suggested !== num(b.baseKcal) ? `<button class="btn" data-suggest>Use ${fmt(suggested)} from my stats</button>` : ''}
       </div>
     </section>
 
@@ -95,7 +153,7 @@ export function render(root, ctx) {
       <p class="small">Add, edit or delete your own food types (raw or cooked) in <a href="#/food/foods">Food → My Foods</a>. You have ${state.customFoods.length} custom food${state.customFoods.length === 1 ? '' : 's'}.</p>
     </section>
 
-    <section class="card">
+    <section class="card" id="backup-settings">
       <div class="card-head"><div><h2>Backup</h2><div class="sub">Your data is saved only on this device</div></div></div>
       <div class="row wrap">
         <button class="btn btn-primary" data-export>Back up now</button>
@@ -120,26 +178,57 @@ export function render(root, ctx) {
     const which = btn.dataset.save;
     const form = root.querySelector(`[data-form="${which}"]`);
     const v = formValues(form);
+    let next;
+    try { next = parseSettings(which, v); }
+    catch (err) { toast(err.message); return; }
     const target = which === 'profile' ? state.profile : which === 'targets' ? state.targets : state.burn;
-    for (const [k, raw] of Object.entries(v)) {
-      if (k === 'sex') { if (raw) target.sex = raw; continue; }
-      const n = numOrNull(raw);
-      if (which === 'profile' && n === null) { target[k] = null; continue; }
-      if (n === null || n < 0) { toast('Please fill every field with a number'); return; }
-      target[k] = n;
-    }
-    if (which === 'burn' && !(state.burn.kcalPerKg > 0)) state.burn.kcalPerKg = 7700;
+    const firstProfile = which === 'profile' && !profileComplete(state.profile);
+    Object.assign(target, next);
+    if (firstProfile && next.age >= 18 && next.nutritionContext === 'general' && state.burn.baseKcal === DEFAULT_BURN.baseKcal) state.burn.baseKcal = suggestBaseKcal(state.profile, next.startWeightKg);
     ctx.save();
     toast('Saved');
     ctx.render();
   }));
 
   root.querySelector('[data-suggest]')?.addEventListener('click', () => {
-    state.burn.baseKcal = suggested;
-    ctx.save();
-    toast(`Everyday burn set to ${fmt(suggested)} kcal`);
-    ctx.render();
+    root.querySelector('[name=baseKcal]').value = suggested;
+    updateBurnPreview();
+    toast('Profile estimate filled. Save burn settings to apply.');
   });
+
+  root.querySelectorAll('[data-jump]').forEach((a) => a.addEventListener('click', (e) => {
+    e.preventDefault();
+    root.querySelector(`#${a.dataset.jump}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }));
+  const targetForm = root.querySelector('[data-form=targets]');
+  const updateMacroTotal = () => {
+    const v = formValues(targetForm);
+    const total = num(v.protein) * 4 + num(v.carbs) * 4 + num(v.fat) * 9;
+    targetForm.querySelector('[data-macro-total]').textContent = `Macros add up to ${fmt(total)} kcal.${Math.abs(total - num(v.kcal)) > 50 ? ' Check the calories or macro amounts: they differ by more than 50 kcal.' : ''}`;
+  };
+  targetForm.querySelectorAll('input').forEach((input) => input.addEventListener('input', updateMacroTotal));
+  root.querySelector('[data-fill-targets]')?.addEventListener('click', () => {
+    for (const [key, value] of Object.entries(rec.targets)) targetForm.querySelector(`[name=${key}]`).value = value;
+    updateMacroTotal();
+    targetForm.querySelector('[data-target-feedback]').textContent = 'Suggestion filled. Review the amounts and Save targets to apply.';
+  });
+  const burnForm = root.querySelector('[data-form=burn]');
+  function updateBurnPreview() {
+    try {
+      const next = parseSettings('burn', formValues(burnForm));
+      const extra = Math.max(0, next.strengthMet - 1) * weight * next.strengthMinutes / 60;
+      const cardio = Math.max(0, next.jogMet - 1) * weight * num(p.cardioMinutes) / 60;
+      const avg = next.baseKcal + (num(p.strengthDays) * extra + cardio) / 7;
+      burnForm.querySelector('[data-burn-preview]').textContent = `Preview: rest day ${fmt(next.baseKcal)} kcal · full lifting session +${fmt(extra)} kcal · planned weekly average ${fmt(avg)} kcal/day. Save burn settings to apply.`;
+    } catch (err) { burnForm.querySelector('[data-burn-preview]').textContent = err.message; }
+  }
+  burnForm.querySelectorAll('input').forEach((input) => input.addEventListener('input', updateBurnPreview));
+  for (const [preset, name] of [['strengthPreset', 'strengthMet'], ['jogPreset', 'jogMet']]) {
+    burnForm.querySelector(`[name=${preset}]`).addEventListener('change', (e) => {
+      if (e.target.value) burnForm.querySelector(`[name=${name}]`).value = e.target.value;
+      updateBurnPreview();
+    });
+  }
 
   root.querySelector('[data-addsupp]').addEventListener('click', () => openSupplement(ctx, null));
   root.querySelectorAll('[data-supp]').forEach((b2) => b2.addEventListener('click', () => openSupplement(ctx, state.supplements.find((s) => s.id === b2.dataset.supp))));
@@ -181,6 +270,9 @@ export function render(root, ctx) {
     toast('All data reset');
     ctx.render();
   });
+
+  const section = { profile: 'profile-settings', targets: 'target-settings', burn: 'burn-settings', backup: 'backup-settings' }[params[0]];
+  if (section) requestAnimationFrame(() => root.querySelector(`#${section}`)?.scrollIntoView({ block: 'start' }));
 }
 
 const WEEK = [[1, 'M'], [2, 'T'], [3, 'W'], [4, 'T'], [5, 'F'], [6, 'S'], [0, 'S']];

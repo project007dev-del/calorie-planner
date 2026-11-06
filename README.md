@@ -2,6 +2,10 @@
 
 An installable phone app (PWA) built around the **Lean Muscle & Fat-Loss Plan · 1,900 kcal · 5-day split**.
 
+The original plan remains the starting preset. **Settings → Daily targets** now offers profile-based suggestions for gradual fat loss, maintenance or gradual weight gain. Diet style defaults to a profile-based suggestion; balanced Filipino, higher-protein and plant-forward preferences are also available. Fill the suggested values, review them and save to apply. Recommendations use your saved burn settings, planned weekly exercise and recent weight; they do not change your logged workouts. On your first profile save, the untouched default burn is personalized automatically; existing custom burn settings stay in place.
+
+**Settings → Calorie burn** includes everyday movement levels, lifting/jogging presets, a live preview and advanced controls. Food search accepts Filipino names such as **kanin, itlog, tokwa, togue and monggo**, with quick filters and 14 additional Filipino foods. The new entries show state-specific DOST-FNRI sources and preparation notes. [Nutrition sources and calculation choices](docs/nutrition-sources.md).
+
 - **Food log:** enter what you eat **in grams, raw or cooked**. Calories and protein, carbs and fat are calculated for you. Portion buttons (e.g. "2 eggs · 100 g", "1 cup cooked rice") fill in the grams, the meal is picked from the time of day, and a deleted item can be undone.
 - **Your own foods:** add any food type by typing the values from the label (per 100 g or per serving), marked as raw or cooked.
 - **Food history:** see past days, averages for the last 7 or 30 days, and how often you hit your targets. You can also look up when you ate a particular food.
@@ -40,12 +44,19 @@ Data does not sync between devices. To move it, use Export backup on one device 
 | What | How |
 |---|---|
 | Food | `value per 100 g × grams ÷ 100`, using the raw or cooked values you picked |
-| Built-in foods | Cooked values for the plan's foods come from the plan's food table. Raw values and extra Filipino foods are typical USDA/FNRI figures. Brand labels are more accurate, so add your own foods for those. |
-| Daily burn | everyday burn (BMR × 1.4 from your stats, Mifflin-St Jeor) + lifting `(MET 3.5 − 1) × kg × 1 h × share of exercises done` + jog `(MET 7 − 1) × kg × hours`. All of these can be changed in Settings. |
+| Built-in foods | Original entries retain the plan's table and approximate USDA/FNRI-style values. The 14 new Filipino entries use linked PhilFCT references for each available preparation. Branded and home-cooked foods vary; use a product label or your own recipe values when available. |
+| Daily burn | saved everyday burn + lifting `(MET − 1) × kg × hours × share of exercises done` + jog `(MET − 1) × kg × hours`. A suggested everyday burn uses Mifflin-St Jeor × 1.2 / 1.4 / 1.6 / 1.8 for movement outside workouts. Workouts count only when completed. |
+| Suggested targets | saved everyday burn + planned weekly exercise ÷ 7, then a modest goal adjustment. This is separate from actual logged daily burn. Diet and macro assumptions are explained in Settings and the nutrition notes. |
 | Expected change | `(eaten − burned) ÷ 7,700 kcal per kg`. The weekly pace averages the last 7/14/28 days **that have food logged**. Days with no log are skipped, not counted as 0 kcal. |
 | Goal date | (current 7-day average weight − goal weight) ÷ weekly pace |
 
 These are estimates. Water, salt and creatine move the scale, so go by the weekly average and your waist. This is a general fitness tool, not medical advice.
+
+Automatic nutrition targets are limited to generally healthy adults and are withheld for under-18s, pregnancy/breastfeeding or diet-related conditions, BMI below 18.5 or at least 40, or a goal below BMI 18.5. Manual tracking remains available.
+
+## Android APK feasibility
+
+An APK is feasible using Capacitor to package the existing HTML/CSS/JavaScript with the app. No framework rewrite or backend is needed for the current features. Native backup/share, persistent storage, Android Back behavior and device testing need additional work. An APK has **not** been built in this update. See the [Android feasibility and implementation checklist](docs/android-feasibility.md).
 
 ## Project layout
 
@@ -56,10 +67,13 @@ js/app.js                                 router + date selector
 js/plan.js                                targets, workout split, supplements from the PDF
 js/foods.js                               built-in food database (raw & cooked per 100 g)
 js/calc.js                                all calculations (unit-tested)
+js/recommendations.js                     profile-based diet and target suggestions
+js/settings-model.js                      whole-section settings validation
 js/store.js                               saving, backup export/import
 js/chart.js                               SVG chart with hover tooltip
 js/views/*.js                             Today, Food, Workout, Progress, Settings screens
 tests/calc.test.mjs                       npm test
+tests/recommendations.test.mjs            recommendations, validation, foods and offline coverage
 tools/make-icons.mjs                      regenerates the PNG icons
 server.mjs                                local test server
 ```

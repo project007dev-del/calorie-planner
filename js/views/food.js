@@ -2,7 +2,7 @@
 import { esc, fmt, fmtDate, fmtLongDate, num, numOrNull, uid, addDays, todayISO, isValidISO } from '../util.js';
 import { getDay } from '../store.js';
 import { MEALS, EXAMPLE_DAY, mealForNow } from '../plan.js';
-import { CATEGORIES, categoryName, allFoods, findFood, statesOf, stateLabel, BUILTIN_FOODS, portionChips } from '../foods.js';
+import { CATEGORIES, categoryName, allFoods, findFood, statesOf, stateLabel, BUILTIN_FOODS, portionChips, searchFoods } from '../foods.js';
 import {
   scale, makeEntry, entryNutrients, foodTotals, dayIntake, buildExampleEntries, recentFoods,
   foodHistory, summarizeFoodDays, foodUsage, per100FromServing, macroKcal, kcalStatus,
@@ -118,18 +118,17 @@ async function loadExample(ctx, date) {
 // ---------- Add food sheet ----------
 function foodRow(f) {
   const states = statesOf(f);
-  const vals = states.map((s) => `${s === 'raw' ? 'raw' : 'cooked'} ${fmt(f[s].kcal)}`).join(' · ');
+  const vals = states.map((s) => `${stateLabel(f, s)} ${fmt(f[s].kcal)}`).join(' · ');
   return `<li><button type="button" class="item" data-pick="${esc(f.id)}">
     <span class="grow"><span class="title">${esc(f.name)}</span> ${f.custom ? '<span class="badge custom">MINE</span>' : ''}<br>
-      <span class="meta">${states.map(stateBadge).join(' ')} <span class="num">kcal/100 g: ${vals}</span></span></span>
+      <span class="meta num">kcal/100 g: ${esc(vals)}</span></span>
   </button></li>`;
 }
 
-function renderResults(state, query) {
-  const q = query.trim().toLowerCase();
-  const foods = allFoods(state).filter((f) => !q || f.name.toLowerCase().includes(q) || categoryName(f.category).toLowerCase().includes(q));
+function renderResults(state, query, filter = 'all') {
+  const foods = searchFoods(state, query, filter);
   if (!foods.length) {
-    return `<div class="empty">No food called “${esc(query)}”.<br><button type="button" class="btn btn-primary" style="margin-top:8px" data-create>+ Create “${esc(query)}”</button></div>`;
+    return `<div class="empty">${query.trim() ? `No matches for “${esc(query)}” in this filter.` : 'No foods in this filter.'}<br>Try All foods or add your own.<br><button type="button" class="btn btn-primary" style="margin-top:8px" data-create>+ Create food</button></div>`;
   }
   const groups = [];
   const mine = foods.filter((f) => f.custom);
@@ -138,7 +137,7 @@ function renderResults(state, query) {
     const g = foods.filter((f) => !f.custom && f.category === c.id);
     if (g.length) groups.push([c.name, g]);
   }
-  return groups.map(([name, list]) => `<h3 class="muted small" style="margin:10px 0 2px">${esc(name)}</h3><ul class="list">${list.map(foodRow).join('')}</ul>`).join('');
+  return `<p class="muted tiny" role="status">${foods.length} food${foods.length === 1 ? '' : 's'} found</p>` + groups.map(([name, list]) => `<h3 class="muted small" style="margin:10px 0 2px">${esc(name)}</h3><ul class="list">${list.map(foodRow).join('')}</ul>`).join('');
 }
 
 function previewHtml(v) {
@@ -160,7 +159,8 @@ export function openAddFood(ctx, { meal = mealForNow(), date, foodId = null, sta
   const recent = recentFoods(state, 10).filter((r) => findFood(state, r.foodId)?.[r.state]);
   const body = `
     <div class="search-stage">
-      <input class="input" type="search" placeholder="Search foods (e.g. chicken, rice)" data-q autocomplete="off" aria-label="Search foods">
+      <input class="input" type="search" placeholder="Search: togue, munggo, kanin, chicken…" data-q autocomplete="off" aria-label="Search foods in English or Filipino">
+      <div class="chips" role="group" aria-label="Filter foods">${[['all', 'All foods'], ['filipino', 'Filipino foods'], ['veg', 'Vegetables'], ['protein', 'Protein foods']].map(([id, label]) => `<button type="button" class="chip" data-filter="${id}" aria-pressed="${id === 'all'}">${label}</button>`).join('')}</div>
       ${recent.length ? `<div><div class="muted small" style="margin-bottom:4px">Recent</div><div class="chips">${recent.map((r, i) =>
         `<button type="button" class="chip" data-recent="${i}">${esc(r.name)} · ${r.state === 'raw' ? 'raw' : 'cooked'} · ${fmt(r.grams)} g</button>`).join('')}</div></div>` : ''}
       <div class="results" data-results></div>
@@ -176,9 +176,10 @@ export function openAddFood(ctx, { meal = mealForNow(), date, foodId = null, sta
       const results = dlg.querySelector('[data-results]');
       const searchStage = dlg.querySelector('.search-stage');
       const detail = dlg.querySelector('[data-detail]');
+      let filter = 'all';
 
       const drawResults = () => {
-        results.innerHTML = renderResults(state, q.value);
+        results.innerHTML = renderResults(state, q.value, filter);
         results.querySelectorAll('[data-pick]').forEach((b) => b.addEventListener('click', () => showDetail(b.dataset.pick)));
         results.querySelector('[data-create]')?.addEventListener('click', () => createNew(q.value));
       };
@@ -204,6 +205,7 @@ export function openAddFood(ctx, { meal = mealForNow(), date, foodId = null, sta
           <div class="chips" data-gramchips>${[25, 50, 100, 150, 200, 250].map((g) => `<button type="button" class="chip" data-g="${g}">${g} g</button>`).join('')}</div>
           <div class="preview" data-preview></div>
           <p class="muted small" data-per100></p>
+          <p class="tiny" data-food-source></p>
           ${food.note ? `<p class="muted small">${esc(food.note)}</p>` : ''}
           <button type="button" class="btn btn-primary btn-block" data-addit>Add</button>`;
         searchStage.classList.add('hidden');
@@ -223,6 +225,8 @@ export function openAddFood(ctx, { meal = mealForNow(), date, foodId = null, sta
           const per = food[cur];
           detail.querySelector('[data-preview]').innerHTML = previewHtml(scale(per, gramsIn.value));
           detail.querySelector('[data-per100]').textContent = `Per 100 g ${stateLabel(food, cur).toLowerCase()}: ${fmt(per.kcal)} kcal · P ${fmt(per.protein, 1)} · C ${fmt(per.carbs, 1)} · F ${fmt(per.fat, 1)} g`;
+          const source = food.sources?.[cur];
+          detail.querySelector('[data-food-source]').innerHTML = source ? `Source: <a href="${esc(source.url)}" target="_blank" rel="noopener noreferrer">${esc(source.title)}</a> · per 100 g edible portion` : 'Approximate reference values. Use your product label for branded foods.';
         };
         detail.querySelectorAll('[name=state]').forEach((r) => r.addEventListener('change', update));
         gramsIn.addEventListener('input', update);
@@ -246,6 +250,11 @@ export function openAddFood(ctx, { meal = mealForNow(), date, foodId = null, sta
       }
 
       q.addEventListener('input', drawResults);
+      dlg.querySelectorAll('[data-filter]').forEach((button) => button.addEventListener('click', () => {
+        filter = button.dataset.filter;
+        dlg.querySelectorAll('[data-filter]').forEach((b) => b.setAttribute('aria-pressed', String(b === button)));
+        drawResults();
+      }));
       dlg.querySelector('[data-newfood]').addEventListener('click', () => createNew(q.value));
       dlg.querySelectorAll('[data-recent]').forEach((b) => b.addEventListener('click', () => {
         const r = recent[Number(b.dataset.recent)];
@@ -442,7 +451,7 @@ function renderMyFoods(root, ctx) {
           <thead><tr><th>Food</th><th class="r">kcal</th><th class="r">P</th><th class="r">C</th><th class="r">F</th></tr></thead>
           <tbody data-builtin></tbody>
         </table>
-        <p class="muted tiny">Cooked values for the plan’s foods come from your plan’s food table. Tap a food to see when you ate it.</p>
+        <p class="muted tiny">Plan foods use the original plan table. New Filipino foods include linked DOST-FNRI references. Tap a food for its preparation, source and history.</p>
       </details>
     </section>`;
 
@@ -451,15 +460,15 @@ function renderMyFoods(root, ctx) {
   const wrap = root.querySelector('[data-builtin-wrap]');
   const draw = (query) => {
     const needle = query.trim().toLowerCase();
-    const match = (name) => !needle || name.toLowerCase().includes(needle);
-    const mine = state.customFoods.filter((c) => match(c.name));
+    const matched = new Set(searchFoods(state, query).map((food) => food.id));
+    const mine = state.customFoods.filter((c) => matched.has(c.id));
     mineEl.innerHTML = mine.length ? `<ul class="list" style="margin-top:8px">${mine.map((c) => `<li><button class="item" data-food="${esc(c.id)}">
       <span class="grow"><span class="title">${esc(c.name)}</span> ${stateBadge(c.state)}<br>
         <span class="meta num">${esc(categoryName(c.category))} · per 100 g: ${fmt(c.per100.kcal)} kcal · P ${fmt(c.per100.protein, 1)} · C ${fmt(c.per100.carbs, 1)} · F ${fmt(c.per100.fat, 1)}</span></span>
       <span class="muted">›</span></button></li>`).join('')}</ul>`
       : `<div class="empty">${needle ? 'No matching foods of your own.' : 'No foods yet. Tap <b>+ New food</b> and type the values from the label or a nutrition site. Pick raw or cooked so the grams you weigh match.'}</div>`;
     const rows = CATEGORIES.map((cat) => {
-      const list = BUILTIN_FOODS.filter((f) => f.category === cat.id && match(f.name));
+      const list = BUILTIN_FOODS.filter((f) => f.category === cat.id && matched.has(f.id));
       if (!list.length) return '';
       return `<tr><th colspan="5" style="padding-top:12px">${esc(cat.name)}</th></tr>` + list.map((f) => statesOf(f).map((st, i) => `
         <tr data-food="${esc(f.id)}" tabindex="0" role="button" aria-label="${esc(f.name)}, ${st}" style="cursor:pointer">
@@ -503,6 +512,7 @@ function openFoodDetail(ctx, foodId) {
       <table class="table"><thead><tr><th>Per 100 g</th><th class="r">kcal</th><th class="r">P</th><th class="r">C</th><th class="r">F</th></tr></thead><tbody>${valueRows}</tbody></table>
       ${servingLine}
       ${food.note ? `<p class="small muted">${esc(food.note)}</p>` : ''}
+      ${statesOf(food).filter((s) => food.sources?.[s]).map((s) => `<p class="tiny">${esc(stateLabel(food, s))} source: <a href="${esc(food.sources[s].url)}" target="_blank" rel="noopener noreferrer">${esc(food.sources[s].title)}</a></p>`).join('')}
       <div class="row wrap">
         <button type="button" class="btn btn-primary" data-log>Log it</button>
         ${custom ? '<button type="button" class="btn" data-editfood>Edit</button><button type="button" class="btn btn-danger" data-delfood>Delete</button>' : ''}

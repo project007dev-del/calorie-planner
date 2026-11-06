@@ -213,11 +213,13 @@ export function bmrMifflin({ sex, age, heightCm, weightKg }) {
 }
 
 /**
- * Everyday burn without planned workouts ≈ BMR × 1.4 (normal daily movement),
+ * Everyday burn without planned workouts ≈ BMR × everyday activity factor,
  * rounded to 10 kcal. Workouts are added on top when ticked done.
  */
 export function suggestBaseKcal(profile, weightKg) {
-  return Math.round((bmrMifflin({ ...profile, weightKg }) * 1.4) / 10) * 10;
+  const factors = { sedentary: 1.2, light: 1.4, active: 1.6, physical: 1.8 };
+  const factor = factors[profile.activityLevel] || 1.4;
+  return Math.round((bmrMifflin({ ...profile, weightKg }) * factor) / 10) * 10;
 }
 
 // ---------- History helpers ----------

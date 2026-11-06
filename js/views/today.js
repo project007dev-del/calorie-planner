@@ -34,6 +34,7 @@ export function render(root, ctx) {
       ${meter('m-protein', 'Protein', intake.total.protein, t.protein)}
       ${meter('m-carbs', 'Carbs', intake.total.carbs, t.carbs)}
       ${meter('m-fat', 'Fat', intake.total.fat, t.fat)}
+      <p class="small" style="margin-top:12px"><a href="#/settings/targets">Review diet &amp; daily target recommendations</a></p>
     </section>`;
 
   // ----- Protein backup rule -----
@@ -200,7 +201,7 @@ function setupCard(p) {
         <label class="field"><span>Waist goal (cm) · optional</span><input class="input num" name="waistGoalCm" inputmode="decimal" value="${v(p.waistGoalCm)}" placeholder="½ of height"></label>
       </div>
       <button class="btn btn-primary btn-block" style="margin-top:12px" data-setup-save>Save my stats</button>
-      <p class="muted tiny" style="margin-top:8px">Daily targets start at the plan’s 1,900 kcal · 145 g protein · 205 g carbs · 55 g fat. You can change everything later in Settings.</p>
+      <p class="muted tiny" style="margin-top:8px">Daily targets start at the plan’s 1,900 kcal. After saving, open Settings → Daily targets to review suggestions based on your profile.</p>
     </section>`;
 }
 
@@ -233,13 +234,13 @@ function wireSetup(root, ctx) {
     if (values.waistGoalCm === null) values.waistGoalCm = Math.round(values.heightCm / 2 * 10) / 10;
     Object.assign(state.profile, values, { sex });
     // Personalise the everyday burn unless it was already changed by hand.
-    if (Number(state.burn.baseKcal) === DEFAULT_BURN.baseKcal) state.burn.baseKcal = suggestBaseKcal(state.profile, values.startWeightKg);
+    if (values.age >= 18 && state.profile.nutritionContext !== 'special' && Number(state.burn.baseKcal) === DEFAULT_BURN.baseKcal) state.burn.baseKcal = suggestBaseKcal(state.profile, values.startWeightKg);
     // Use today's numbers as the first weigh-in so the chart has a starting point.
     const today = getDay(state, todayISO(), true);
     if (!today.weightKg) today.weightKg = values.startWeightKg;
     if (!today.waistCm && values.startWaistCm) today.waistCm = values.startWaistCm;
     ctx.save();
-    toast('Stats saved');
+    toast('Stats saved. Review your daily target recommendations in Settings.');
     ctx.render();
   });
 }

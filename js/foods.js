@@ -3,6 +3,7 @@
 // Cooked values for the plan's foods come straight from the plan's food table;
 // raw values and extra foods are typical USDA / FNRI-style figures.
 // Brand labels are more accurate – add your own foods in Food → My Foods.
+// New Filipino entries below use linked PhilFCT reports, not recipe guesses.
 
 export const CATEGORIES = [
   { id: 'protein', name: 'Protein foods' },
@@ -11,11 +12,13 @@ export const CATEGORIES = [
   { id: 'veg', name: 'Vegetables' },
   { id: 'fats', name: 'Fats, oils & nuts' },
   { id: 'dairy', name: 'Dairy & drinks' },
+  { id: 'dishes', name: 'Filipino snacks' },
   { id: 'other', name: 'Other' },
 ];
 export const categoryName = (id) => (CATEGORIES.find((c) => c.id === id) || CATEGORIES.at(-1)).name;
 
 const n = (kcal, protein, carbs, fat) => ({ kcal, protein, carbs, fat });
+const fnri = (report, code) => ({ title: `DOST-FNRI PhilFCT · ${code}`, url: `https://i.fnri.dost.gov.ph/fct/library/report/${report}` });
 
 export const BUILTIN_FOODS = [
   // Protein foods
@@ -68,7 +71,72 @@ export const BUILTIN_FOODS = [
   { id: 'milk_whole', name: 'Milk, whole', category: 'dairy', raw: n(61, 3.2, 4.8, 3.3), labels: { raw: 'As is' }, note: '1 cup ≈ 244 g.', units: [{ one: 'cup', many: 'cups', g: 244 }] },
   { id: 'milk_lowfat', name: 'Milk, low-fat (1%)', category: 'dairy', raw: n(42, 3.4, 5.0, 1.0), labels: { raw: 'As is' }, units: [{ one: 'cup', many: 'cups', g: 244 }] },
   { id: 'greek_yogurt', name: 'Greek yogurt, plain non-fat', category: 'dairy', raw: n(59, 10.2, 3.6, 0.4), labels: { raw: 'As is' } },
+
+  // Philippine Food Composition Table, release 1 December 2019.
+  // Each state is a separate measured reference. Weigh only edible portions.
+  { id: 'togue', name: 'Togue / mung bean sprouts', aliases: ['toge', 'bean sprout', 'monggo sprouts'], category: 'veg', filipino: true,
+    raw: n(64, 5.7, 10, 0.1), cooked: n(54, 4.8, 7, 0.7), labels: { cooked: 'Boiled (no oil)' },
+    sources: { raw: fnri(3410, 'D131'), cooked: fnri(3411, 'D132') },
+    note: 'Log raw grams before cooking or boiled grams after cooking. For ginisang togue, log oil, meat and sauce separately.' },
+  { id: 'munggo', name: 'Munggo / monggo, green beans (boiled)', aliases: ['mung beans', 'balatong', 'mongo'], category: 'protein', filipino: true,
+    cooked: n(155, 11, 27.1, 0.3), labels: { cooked: 'Boiled beans (no oil)' }, sources: { cooked: fnri(3238, 'C028') },
+    note: 'Plain boiled green mung beans, not the full ginisang munggo dish. Log oil, pork, coconut milk and other ingredients separately.' },
+  { id: 'ampalaya', name: 'Ampalaya / bitter melon', aliases: ['bitter gourd'], category: 'veg', filipino: true,
+    raw: n(23, 1, 4.2, 0.2), cooked: n(19, 0.4, 3.8, 0.2), labels: { cooked: 'Boiled (no oil)' },
+    sources: { raw: fnri(3297, 'D018'), cooked: fnri(3298, 'D019') }, note: 'Edible flesh only. For ginisang ampalaya, log eggs and oil separately.' },
+  { id: 'kalabasa', name: 'Kalabasa / squash', aliases: ['pumpkin'], category: 'veg', filipino: true,
+    raw: n(68, 1.2, 15.3, 0.2), cooked: n(47, 0.4, 10.8, 0.2), labels: { cooked: 'Boiled (no oil)' },
+    sources: { raw: fnri(3504, 'D225'), cooked: fnri(3505, 'D226') }, note: 'Weigh edible flesh without skin or seeds. Coconut milk and oil are not included.' },
+  { id: 'okra', name: 'Okra / ladyfinger', category: 'veg', filipino: true,
+    raw: n(34, 1.8, 5.9, 0.3), sources: { raw: fnri(3418, 'D139') }, note: 'Raw edible weight before cooking. Log oil and sauce separately.' },
+  { id: 'malunggay', name: 'Malunggay / moringa leaves', aliases: ['drumstick tree leaves'], category: 'veg', filipino: true,
+    raw: n(108, 9.7, 12.7, 2), cooked: n(63, 3.1, 10.6, 0.9), labels: { cooked: 'Boiled leaves' },
+    sources: { raw: fnri(3373, 'D094'), cooked: fnri(3374, 'D095') }, note: 'Leaves only, without stems. Values are for fresh or boiled leaves, not dried powder.' },
+  { id: 'cassava', name: 'Kamoteng kahoy / cassava (boiled)', aliases: ['balinghoy', 'balinghoy nilaga'], category: 'carbs', filipino: true,
+    cooked: n(111, 0.4, 27.1, 0.1), labels: { cooked: 'Boiled, plain' },
+    sources: { cooked: { title: 'DOST-FNRI PhilFCT · Cassava, boiled', url: 'https://i.fnri.dost.gov.ph/fct/library/food_content/B' } },
+    note: 'Cooked edible flesh only. Added sugar, butter and coconut are not included.' },
+  { id: 'pineapple', name: 'Pinya / pineapple (fresh)', category: 'fruit', filipino: true,
+    raw: n(55, 0.4, 13, 0.2), sources: { raw: fnri(3655, 'E073') }, note: 'Edible flesh without peel; not canned pineapple or juice.' },
+  { id: 'saba', name: 'Saging saba / saba banana', category: 'fruit', filipino: true,
+    raw: n(110, 1.1, 25.5, 0.4), cooked: n(159, 1.2, 38.6, 0), labels: { raw: 'Raw (peeled)', cooked: 'Boiled (peeled)' },
+    sources: { raw: { title: 'DOST-FNRI PhilFCT · E014', url: 'https://i.fnri.dost.gov.ph/fct/library/food_content/E' }, cooked: fnri(3597, 'E015') },
+    note: 'Weigh without peel. Use the separate turon or banana cue entry for those preparations.' },
+  { id: 'galunggong', name: 'Galunggong / round scad', category: 'protein', filipino: true,
+    raw: n(100, 20.4, 0, 2.1), sources: { raw: fnri(4085, 'G105') }, note: 'Raw edible flesh only, without head and bones. Cooking oil is not included.' },
+  { id: 'tinapa', name: 'Tinapa / smoked galunggong', category: 'protein', filipino: true,
+    cooked: n(158, 31.6, 0, 3.5), labels: { cooked: 'Smoked, edible flesh' }, sources: { cooked: fnri(4188, 'G208') },
+    note: 'Smoked round scad, without bones. Often salty; added frying oil is not included.' },
+  { id: 'sardines_tomato', name: 'Sardinas / sardines in tomato sauce', aliases: ['sardines canned', 'sardinas de lata'], category: 'protein', filipino: true,
+    cooked: n(88, 9.7, 2.7, 4.3), labels: { cooked: 'Canned, with sauce' }, sources: { cooked: fnri(4183, 'G203') },
+    note: 'Reference includes the sauce. Brands vary; use the can label to create your own food for a closer match.' },
+  { id: 'turon', name: 'Turon / fried banana spring roll', category: 'dishes', filipino: true,
+    cooked: n(259, 2.4, 48, 6.4), labels: { cooked: 'Prepared, fried' },
+    sources: { cooked: { title: 'DOST-FNRI PhilFCT · E102', url: 'https://i.fnri.dost.gov.ph/fct/library/food_content/E' } },
+    note: 'Recipe average includes wrapper, sugar and frying oil. Weigh the whole edible roll; bakery recipes vary.' },
+  { id: 'banana_cue', name: 'Banana cue / fried saba with sugar', aliases: ['bananacue', 'banana q'], category: 'dishes', filipino: true,
+    cooked: n(183, 2, 37.8, 2.6), labels: { cooked: 'Prepared, fried' },
+    sources: { cooked: { title: 'DOST-FNRI PhilFCT · E101', url: 'https://i.fnri.dost.gov.ph/fct/library/food_content/E' } },
+    note: 'Recipe average includes sugar and oil. Weigh edible banana without the stick; preparation varies.' },
 ];
+
+const LOCAL_ALIASES = {
+  white_rice: ['kanin', 'bigas'], brown_rice: ['kanin brown'], chicken_breast: ['manok dibdib'],
+  chicken_thigh: ['manok hita'], egg_whole: ['itlog'], egg_white: ['puti ng itlog'], tofu_firm: ['tokwa'],
+  pork_liver: ['atay baboy'], pork_tenderloin: ['baboy'], banana: ['saging'], mango: ['mangga'],
+  cabbage: ['repolyo'], carrot: ['karot'], eggplant: ['talong'], tomato: ['kamatis'], cucumber: ['pipino'],
+  peanuts: ['mani'], milk_whole: ['gatas'], oil: ['mantika'],
+};
+const searchText = (value) => String(value).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+export function searchFoods(state, query = '', filter = 'all') {
+  const words = searchText(query).trim().split(/\s+/).filter(Boolean);
+  return allFoods(state).filter((food) => {
+    if (filter === 'filipino' && !food.filipino && !LOCAL_ALIASES[food.id] && !['pandesal', 'kamote', 'bangus', 'tilapia', 'kangkong', 'pechay', 'sayote', 'sitaw', 'papaya'].includes(food.id)) return false;
+    if (!['all', 'filipino'].includes(filter) && food.category !== filter) return false;
+    const text = searchText([food.name, categoryName(food.category), ...(food.aliases || []), ...(LOCAL_ALIASES[food.id] || [])].join(' '));
+    return words.every((word) => text.includes(word));
+  });
+}
 
 export const STATES = ['raw', 'cooked'];
 

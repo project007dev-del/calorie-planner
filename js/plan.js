@@ -14,6 +14,12 @@ export const DEFAULT_PROFILE = {
   startWaistCm: null,
   waistGoalCm: null,         // tip: under half your height
   activity: 'Moderately active',
+  activityLevel: 'light', // everyday movement only; planned workouts are added separately
+  goalMode: 'auto',
+  dietStyle: 'auto',
+  nutritionContext: 'general',
+  strengthDays: 5,
+  cardioMinutes: 30,
 };
 
 /** True once the stats the calculations need have been entered. */
