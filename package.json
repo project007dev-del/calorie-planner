@@ -1,6 +1,6 @@
 {
   "name": "calorie-exercise-planner",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "description": "Offline calorie and exercise planner with profile-based nutrition guidance, Filipino foods, food logs, workouts and weight projections.",
   "private": true,
   "type": "module",

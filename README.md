@@ -14,7 +14,7 @@ The original plan remains the starting preset. **Settings → Daily targets** no
 - **Workout history:** past sessions, a weekly summary, a 5-week calendar and a strength chart for each exercise.
 - **Expected weight change:** your kcal per day and kg per week, the date you'd reach your goal weight, a weight chart with a 7-day average, and the plan's adjustment alerts.
 
-- **Appearance:** follow your phone, or choose Light, Dark or **Sand** in Settings → Appearance. Sand uses cream `#f0ece2`, beige `#dfd3c3`, tan `#c7b198` and slate `#596e79`. The moon/sun button switches to dark and back to your last chosen light palette.
+- **Appearance:** follow your phone, or choose Light, Dark or **Sand** in Settings → Appearance. Sand uses deeper cream `#e6dfd3`, beige `#d3c4b1`, tan `#b9a38a` and slate `#50646e`. The moon/sun button switches to dark and back to your last chosen light palette.
 - **Phone friendly:** the Back button/gesture closes pop-ups, works offline, and Settings has an Install button where the browser supports it.
 
 On first launch the app asks for your stats (age, height, weight, goal, waist). They are stored **only on your device** (browser storage), never in the code. Use **Settings → Back up now** regularly (on a phone it opens the share menu so you can save the file to Files or Google Drive); the app reminds you if it has been a while.

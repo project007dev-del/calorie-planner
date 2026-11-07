@@ -60,26 +60,26 @@
   --shadow: none;
 }
 
-/* Sand palette: cream, beige, tan and slate. */
+/* Sand palette: slightly deeper cream, beige, tan and slate. */
 :root[data-theme="sand"] {
   color-scheme: light;
-  --bg: #f0ece2;
-  --card: #dfd3c3;
+  --bg: #e6dfd3;
+  --card: #d3c4b1;
   --text: #27343c;
-  --text-2: #465861;
-  --muted: #465861;
-  --line: #c7b198;
-  --axis: #a28f79;
-  --primary: #596e79;
+  --text-2: #3e4e57;
+  --muted: #3e4e57;
+  --line: #b9a38a;
+  --axis: #96816a;
+  --primary: #50646e;
   --primary-ink: #ffffff;
-  --primary-weak: #f0ece2;
-  --s1: #596e79;
-  --s1-weak: #f0ece2;
+  --primary-weak: #e6dfd3;
+  --s1: #50646e;
+  --s1-weak: #e6dfd3;
   --s2: #966546;
-  --s2-weak: #f0ece2;
+  --s2-weak: #e6dfd3;
   --s3: #63735a;
-  --s3-weak: #f0ece2;
-  --shadow: 0 1px 3px rgba(89, 110, 121, 0.08);
+  --s3-weak: #e6dfd3;
+  --shadow: 0 1px 3px rgba(80, 100, 110, 0.10);
 }
 :root[data-theme="sand"] a:not(.btn) { color: var(--text-2); }
 
