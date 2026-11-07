@@ -27,6 +27,8 @@ jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    env:
+      PLANNER_DEBUG_KEYSTORE: ${{ github.workspace }}/.android/debug.keystore
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v6
@@ -41,8 +43,14 @@ jobs:
       - name: Restore test APK signing key
         uses: actions/cache@v6
         with:
-          path: ~/.android/debug.keystore
+          path: .android/debug.keystore
           key: planner-android-debug-key-v1
+      - name: Prepare test signing key
+        run: |
+          mkdir -p "$(dirname "$PLANNER_DEBUG_KEYSTORE")"
+          if [ ! -f "$PLANNER_DEBUG_KEYSTORE" ]; then
+            keytool -genkeypair -keystore "$PLANNER_DEBUG_KEYSTORE" -storepass android -keypass android -alias androiddebugkey -dname "CN=Android Debug,O=Android,C=US" -keyalg RSA -keysize 2048 -validity 10000
+          fi
       - name: Install dependencies
         run: npm ci
       - name: Test planner and native storage
@@ -57,7 +65,7 @@ jobs:
           android/gradlew -p android assembleDebug --no-daemon
       - name: Package APK and checksum
         run: |
-          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose android/app/build/outputs/apk/debug/app-debug.apk
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs android/app/build/outputs/apk/debug/app-debug.apk
           "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging android/app/build/outputs/apk/debug/app-debug.apk
           mkdir -p artifacts/android
           cp android/app/build/outputs/apk/debug/app-debug.apk artifacts/android/calorie-planner-debug.apk
