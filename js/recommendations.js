@@ -44,9 +44,9 @@ export function dailyRecommendation(state, date) {
   const goal = ['lose', 'maintain', 'gain'].includes(p.goalMode) ? p.goalMode
     : num(p.goalWeightKg) < weight - 0.5 ? 'lose' : num(p.goalWeightKg) > weight + 0.5 ? 'gain' : 'maintain';
   // Conservative app defaults, not a diet prescribed by the source agencies.
-  const bulk = goal === 'gain' ? BULK_INTENSITIES.find((x) => x.id === (p.bulkIntensity || 'light')) : null;
+  const bulk = p.goalMode === 'gain' ? BULK_INTENSITIES.find((x) => x.id === (p.bulkIntensity || 'light')) : null;
   const adjustment = goal === 'lose' ? -Math.min(300, maintenance * 0.10)
-    : bulk ? Math.min(bulk.maxKcal, maintenance * bulk.percent / 100) : 0;
+    : goal === 'gain' ? Math.min(bulk?.maxKcal ?? 200, maintenance * (bulk?.percent ?? 5) / 100) : 0;
   const minimum = p.sex === 'female' ? 1200 : 1500;
   const kcal = Math.max(minimum, Math.round((maintenance + adjustment) / 10) * 10);
   const automaticStyle = p.dietStyle === 'auto';

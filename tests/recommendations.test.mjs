@@ -69,8 +69,13 @@ test('light and heavy bulking use distinct bounded surpluses and consistent macr
   assert.equal(dailyRecommendation(state, date).adjustment, 200);
 });
 
-test('automatic weight gain honors bulking intensity; loss and maintenance ignore it', () => {
+test('bulking requires an explicit goal; automatic weight gain ignores a saved bulk intensity', () => {
   const state = adult({ goalWeightKg: 90, bulkIntensity: 'heavy' });
+  const automatic = dailyRecommendation(state, date);
+  assert.equal(automatic.goal, 'gain');
+  assert.equal(automatic.bulk, null);
+  assert.ok(Math.abs(automatic.adjustment - Math.min(200, automatic.maintenance * 0.05)) < 1e-8);
+  state.profile.goalMode = 'gain';
   assert.equal(dailyRecommendation(state, date).bulk.id, 'heavy');
   for (const goalMode of ['lose', 'maintain']) {
     state.profile.goalMode = goalMode;
@@ -78,13 +83,16 @@ test('automatic weight gain honors bulking intensity; loss and maintenance ignor
     assert.equal(rec.bulk, null);
     assert.ok(rec.adjustment <= 0);
   }
+  assert.equal(state.profile.bulkIntensity, 'heavy', 'changing goals must preserve the saved intensity');
+  state.profile.goalMode = 'auto';
+  assert.equal(dailyRecommendation(state, date).targets.kcal, automatic.targets.kcal);
   state.profile.goalMode = 'gain';
   state.profile.bulkIntensity = 'invalid';
   assert.equal(dailyRecommendation(state, date).available, false);
 });
 
 test('older profiles and backups default to light bulking without changing saved targets', () => {
-  const state = adult({ goalWeightKg: 90 });
+  const state = adult({ goalWeightKg: 90, goalMode: 'gain' });
   delete state.profile.bulkIntensity;
   assert.equal(dailyRecommendation(state, date).bulk.id, 'light');
   const restored = normalize(state);

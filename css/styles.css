@@ -148,6 +148,13 @@ button, input, select, textarea { font: inherit; color: inherit; }
 }
 .guidance { margin-top: 12px; }
 .guidance summary { cursor: pointer; font-weight: 600; padding: 8px 0; }
+.guidance > summary + * { margin-top: 10px; }
+.settings-panel > summary { cursor: pointer; font-weight: 700; padding: 4px 0; }
+.settings-panel > summary::marker { color: var(--primary); }
+.settings-panel > summary > span { display: block; margin: 4px 0 0 18px; color: var(--muted); font-size: 0.8rem; font-weight: 400; }
+.settings-panel-body { margin-top: 14px; }
+.saved-targets { margin-bottom: 12px; }
+.bulking-options { border-left: 3px solid var(--primary); padding-left: 12px; }
 .guidance p + p { margin-top: 8px; }
 .source-links { padding-left: 20px; }
 .source-links li + li { margin-top: 6px; }
