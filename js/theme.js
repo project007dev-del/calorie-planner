@@ -1,5 +1,6 @@
 // Appearance is a device preference, kept apart from the planner data.
 // index.html applies it before the first paint so the page never flashes.
+import { applyNativeTheme, mirrorNativePreference } from './native.js';
 const KEY = 'planner.theme';
 const LIGHT_KEY = 'planner.lightTheme';
 const BAR_COLORS = { light: '#f3f4f1', dark: '#0d0d0d', sand: '#e6dfd3' }; // match --bg for the phone status bar
@@ -20,6 +21,7 @@ export const resolvedTheme = (mode = getThemeMode()) => (mode === 'system' ? (me
 export function applyTheme() {
   const theme = resolvedTheme();
   document.documentElement.dataset.theme = theme;
+  applyNativeTheme(theme);
   document.querySelector('meta[name="theme-color"]')?.setAttribute('content', BAR_COLORS[theme]);
   const btn = document.getElementById('themeToggle');
   if (btn) {
@@ -35,9 +37,10 @@ export function setThemeMode(mode) {
   try {
     if (Object.hasOwn(BAR_COLORS, mode)) {
       localStorage.setItem(KEY, mode);
-      if (mode !== 'dark') localStorage.setItem(LIGHT_KEY, mode);
+      mirrorNativePreference(KEY, mode);
+      if (mode !== 'dark') { localStorage.setItem(LIGHT_KEY, mode); mirrorNativePreference(LIGHT_KEY, mode); }
     }
-    else localStorage.removeItem(KEY);
+    else { localStorage.removeItem(KEY); mirrorNativePreference(KEY, null); }
   } catch { /* private mode: still apply for this session */ }
   applyTheme();
 }

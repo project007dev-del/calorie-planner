@@ -79,7 +79,7 @@ export function render(root, ctx, params = []) {
       <a class="chip" href="#/settings/backup" data-jump="backup-settings">Backup</a>
     </nav>
     <section class="card">
-      <div class="card-head"><h2>Appearance</h2><span class="badge neutral">Version ${APP_VERSION}</span></div>
+      <div class="card-head"><h2>Appearance</h2><span class="badge neutral">Version ${APP_VERSION}${ctx.native ? ' · Android' : ''}</span></div>
       <div class="radio-row" role="radiogroup" aria-label="Theme">
         ${THEME_OPTIONS.map(([v, l]) => `<label><input type="radio" name="theme" value="${v}" ${mode === v ? 'checked' : ''}><span>${l}</span></label>`).join('')}
       </div>
@@ -186,7 +186,7 @@ export function render(root, ctx, params = []) {
       </details>
     </section>
 
-    <details class="card settings-panel">
+    ${ctx.native ? `<section class="card"><div class="card-head"><h2>Android app</h2></div><p class="small">Works offline. To transfer your web planner data, export a backup from the website and import it here.</p></section>` : `<details class="card settings-panel">
       <summary>Install on your phone <span>Advanced view</span></summary>
       <div class="settings-panel-body">
       <div class="card-head"><h2>Install on your phone</h2>${ctx.installPrompt && !standalone ? '<button class="btn btn-sm btn-primary" data-install>Install app</button>' : ''}</div>
@@ -196,7 +196,7 @@ export function render(root, ctx, params = []) {
       <p class="muted tiny">Works offline once installed. Installing needs the app to be opened from an https:// address (or localhost on a computer).</p>`}
       <p class="muted tiny">This is a general fitness tool based on your plan, not medical advice. If you have kidney or liver disease, ask your doctor before increasing protein or taking creatine.</p>
       </div>
-    </details>`;
+    </details>`}`;
 
   const goalInput = root.querySelector('[name=goalMode]');
   goalInput.addEventListener('change', () => {

@@ -75,6 +75,26 @@ export function cardioStatus(day) {
   const c = day?.workout?.cardio;
   return { done: !!c?.done, minutes: c?.done ? num(c.minutes) : 0 };
 }
+
+/** Mark the chosen session complete without inventing sets, weights or reps. */
+export function completeWorkout(workout, plan) {
+  if (!plan || !['strength', 'cardio'].includes(plan.type)) return null;
+  const next = structuredClone(workout || {});
+  next.planDayId = plan.id;
+  next.exercises ||= {};
+  next.cardio ||= { done: false, minutes: 30 };
+  next.notes ??= '';
+  if (plan.type === 'strength') {
+    for (const exercise of plan.exercises) {
+      const previous = next.exercises[exercise.id] || {};
+      next.exercises[exercise.id] = { ...previous, done: true, sets: Array.isArray(previous.sets) ? previous.sets : [] };
+    }
+  } else {
+    const minutes = Number(next.cardio.minutes);
+    next.cardio = { ...next.cardio, done: true, minutes: Number.isFinite(minutes) && minutes >= 0 && minutes <= 300 ? minutes : 30 };
+  }
+  return next;
+}
 export function hasWorkout(day) {
   const s = strengthStatus(day);
   return s.done > 0 || s.sets > 0 || cardioStatus(day).done;

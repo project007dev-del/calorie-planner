@@ -2,7 +2,7 @@
 // Everything here can be changed in Settings; this file is only the starting point.
 import { parseISO } from './util.js';
 
-export const APP_VERSION = '1.4.1';
+export const APP_VERSION = '1.5.0';
 
 // Personal stats start blank: the app asks for them on first launch and keeps
 // them only on the device (nothing personal is stored in the code).

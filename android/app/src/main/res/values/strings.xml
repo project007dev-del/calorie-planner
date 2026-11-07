@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Calorie &amp; Exercise Planner</string>
+    <string name="title_activity_main">Calorie &amp; Exercise Planner</string>
+    <string name="package_name">io.github.project007dev.calorieplanner</string>
+    <string name="custom_url_scheme">io.github.project007dev.calorieplanner</string>
+</resources>

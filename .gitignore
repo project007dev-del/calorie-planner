@@ -1,5 +1,16 @@
 .claude/
 node_modules/
+www/
+android/.gradle/
+android/.idea/
+android/local.properties
+android/**/build/
+android/app/src/main/assets/public/
+android/app/src/main/assets/capacitor.config.json
+android/app/src/main/assets/capacitor.plugins.json
+android/capacitor-cordova-android-plugins/
+*.keystore
+*.jks
 artifacts/
 *.log
 .DS_Store

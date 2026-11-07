@@ -1,4 +1,6 @@
-# Android APK feasibility
+# Android APK feasibility (initial assessment)
+
+This initial assessment is superseded by the [Android build and testing guide](android-build.md). The Android project, native integrations and automated APK build are now implemented.
 
 Assessed 7 November 2026. **Feasible, with high reuse of the existing app. No APK was built.**
 

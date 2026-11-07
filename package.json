@@ -1,12 +1,29 @@
 {
   "name": "calorie-exercise-planner",
-  "version": "1.4.1",
+  "version": "1.5.0",
   "description": "Offline calorie and exercise planner with profile-based nutrition guidance, Filipino foods, food logs, workouts and weight projections.",
   "private": true,
   "type": "module",
   "scripts": {
     "start": "node server.mjs",
     "test": "node --test",
-    "icons": "node tools/make-icons.mjs"
+    "icons": "node tools/make-icons.mjs",
+    "build:native": "node tools/build-native.mjs",
+    "android:sync": "npm run build:native && cap sync android && node tools/configure-android.mjs",
+    "android:open": "cap open android",
+    "android:apk": "npm run android:sync && node tools/build-apk.mjs"
+  },
+  "dependencies": {
+    "@capacitor/android": "8.6.0",
+    "@capacitor/app": "8.1.2",
+    "@capacitor/browser": "8.0.5",
+    "@capacitor/core": "8.6.0",
+    "@capacitor/filesystem": "8.1.5",
+    "@capacitor/preferences": "8.0.1",
+    "@capacitor/share": "8.0.3"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "8.6.0",
+    "esbuild": "0.28.2"
   }
 }

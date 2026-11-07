@@ -2,6 +2,7 @@
 import { esc, fmt, todayISO } from './util.js';
 import { badge } from './foods.js';
 import { exportJSON, markBackedUp } from './store.js';
+import { shareNativeBackup } from './native.js';
 
 /**
  * Short message at the bottom. With { action, onAction } it shows a button
@@ -186,6 +187,8 @@ export function download(filename, text, type = 'application/json') {
 
 /** Save a backup: share sheet on phones (Files, Drive, Messenger…), normal download elsewhere. */
 export async function shareOrDownload(filename, text, type = 'application/json') {
+  const nativeResult = await shareNativeBackup(filename, text);
+  if (nativeResult) return nativeResult;
   try {
     const file = new File([text], filename, { type });
     if (navigator.canShare?.({ files: [file] }) && matchMedia('(pointer: coarse)').matches) {
@@ -202,9 +205,14 @@ export async function shareOrDownload(filename, text, type = 'application/json')
 
 /** Export all planner data now (share sheet on phones, download on computers). */
 export async function backupNow(state) {
-  const how = await shareOrDownload(`planner-backup-${todayISO()}.json`, exportJSON(state));
-  if (how === 'cancelled') return false;
-  markBackedUp();
-  toast(how === 'shared' ? 'Backup ready – keep it somewhere safe' : 'Backup downloaded');
-  return true;
+  try {
+    const how = await shareOrDownload(`planner-backup-${todayISO()}.json`, exportJSON(state));
+    if (how === 'cancelled') return false;
+    markBackedUp();
+    toast(how === 'shared' ? 'Backup ready – keep it somewhere safe' : 'Backup downloaded');
+    return true;
+  } catch {
+    toast('Could not create a backup. Please try again.');
+    return false;
+  }
 }

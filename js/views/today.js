@@ -2,7 +2,7 @@ import { esc, fmt, fmtDate, fmtSigned, fmtLongDate, numOrNull, todayISO, diffDay
 import { getDay, getLastBackup } from '../store.js';
 import { planDayById, planDayForDate, profileComplete, DEFAULT_BURN, mealForNow } from '../plan.js';
 import {
-  dayIntake, dayBalance, strengthStatus, cardioStatus, projection, hasFood, weightEntries, avgInWindow,
+  dayIntake, dayBalance, strengthStatus, cardioStatus, completeWorkout, projection, hasFood, weightEntries, avgInWindow,
   suggestBaseKcal, suppSchedule, isScheduled, isDue, nextDue, suppStreak, scheduleLabel,
 } from '../calc.js';
 import { ring, meter, toast, backupNow } from '../ui.js';
@@ -125,7 +125,8 @@ export function render(root, ctx) {
   }
   const workoutCard = `
     <section class="card" aria-labelledby="h-work">
-      <div class="card-head"><h2 id="h-work">Workout</h2><a class="btn btn-sm btn-primary" href="#/workout/today">Open</a></div>
+      <div class="card-head"><h2 id="h-work">Workout</h2><div class="row wrap"><a class="btn btn-sm" href="#/workout/today">Open</a>
+        ${['strength', 'cardio'].includes(plan.type) ? `<button class="btn btn-sm btn-primary" type="button" data-workout-all ${plan.type === 'strength' ? s.done === plan.exercises.length ? 'disabled' : '' : c.done ? 'disabled' : ''}>All done</button>` : ''}</div></div>
       <div class="row between"><div><div class="strong">${esc(plan.short)} · ${esc(plan.title)}</div><div class="muted small">${esc(plan.focus)}</div></div></div>
       <div style="margin-top:8px">${wStatus}</div>
     </section>`;
@@ -152,9 +153,29 @@ export function render(root, ctx) {
       <button class="btn btn-sm" data-backup>Back up</button></section>` : '';
 
   const needsSetup = !profileComplete(state.profile);
-  root.innerHTML = (needsSetup ? setupCard(state.profile) : '') + caloriesCard + balanceCard + suppCard + workoutCard + bodyCard + backupCard;
+  const migration = needsSetup && ctx.native ? '<section class="card"><h2>Already use the web planner?</h2><p class="small">Move your saved logs and settings with a backup.</p><a class="btn btn-sm" href="#/settings/backup">Import your backup</a></section>' : '';
+  root.innerHTML = migration + (needsSetup ? setupCard(state.profile) : '') + caloriesCard + balanceCard + suppCard + workoutCard + bodyCard + backupCard;
   if (needsSetup) wireSetup(root, ctx);
   root.querySelector('[data-quickadd]').addEventListener('click', () => openAddFood(ctx, { meal: mealForNow(), date }));
+  root.querySelector('[data-workout-all]')?.addEventListener('click', () => {
+    const record = getDay(state, date, true);
+    const previous = structuredClone(record.workout || {});
+    record.workout = completeWorkout(record.workout, plan);
+    ctx.save();
+    ctx.render();
+    toast(plan.type === 'cardio' ? `Jog marked done · ${fmt(record.workout.cardio.minutes)} min` : 'All exercises marked done', {
+      action: 'Undo',
+      onAction() {
+        const current = getDay(state, date)?.workout;
+        if (!current || current.planDayId !== plan.id) return;
+        if (plan.type === 'strength') {
+          for (const exercise of plan.exercises) if (current.exercises?.[exercise.id]) current.exercises[exercise.id].done = !!previous.exercises?.[exercise.id]?.done;
+        } else current.cardio.done = !!previous.cardio?.done;
+        ctx.save();
+        ctx.render();
+      },
+    });
+  });
   wireFoodRecommendations(root, ctx, recommendations, date);
   root.querySelector('[data-backup]')?.addEventListener('click', async () => { if (await backupNow(state)) ctx.render(); });
 

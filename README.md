@@ -12,6 +12,7 @@ The original plan remains the starting preset. **Settings → Daily targets** no
 - **Supplements:** checklist with a schedule for each one: every day, every N days (e.g. every 2 days), certain weekdays, or only when needed. Streaks and the 30-day history follow the schedule (taken / missed / not due). Shakes count toward your calories automatically.
 - **Workouts:** the plan's Mon–Fri split with sets × reps, kg/reps per set, last-time values, a "Same as last time" button and an "add weight" hint, plus Saturday jogs.
 - **Workout history:** past sessions, a weekly summary, a 5-week calendar and a strength chart for each exercise.
+- **All done:** finish the planned workout from Today in one tap, with Undo. Existing sets stay intact; completing a workout does not fill in weights or reps. Jog days use the saved duration (30 minutes initially).
 - **Expected weight change:** your kcal per day and kg per week, the date you'd reach your goal weight, a weight chart with a 7-day average, and the plan's adjustment alerts.
 
 - **Appearance:** follow your phone, or choose Light, Dark or **Sand** in Settings → Appearance. Sand uses deeper cream `#e6dfd3`, beige `#d3c4b1`, tan `#b9a38a` and slate `#50646e`. The moon/sun button switches to dark and back to your last chosen light palette.
@@ -62,9 +63,11 @@ These are estimates. Water, salt and creatine move the scale, so go by the weekl
 
 Automatic nutrition targets are limited to generally healthy adults and are withheld for under-18s, pregnancy/breastfeeding or diet-related conditions, BMI below 18.5 or at least 40, or a goal below BMI 18.5. Manual tracking remains available.
 
-## Android APK feasibility
+## Android APK
 
-An APK is feasible using Capacitor to package the existing HTML/CSS/JavaScript with the app. No framework rewrite or backend is needed for the current features. Native backup/share, persistent storage, Android Back behavior and device testing need additional work. An APK has **not** been built in this update. See the [Android feasibility and implementation checklist](docs/android-feasibility.md).
+The `android/` project packages the planner with Capacitor 8, bundled offline assets, native Preferences storage, Android Back handling and backup sharing. **Actions → Android APK** builds a test APK and uploads the **calorie-planner-android-debug** artifact. Import a web backup to move existing logs. Device testing and production signing are still required. See the [Android build and testing guide](docs/android-build.md).
+
+For native development: `npm ci`, then `npm run android:sync`. Build locally with JDK 21 / Android SDK 36 using `npm run android:apk`, or use the GitHub workflow. The web app still runs with `npm start` without installing dependencies.
 
 ## Project layout
 

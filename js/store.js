@@ -8,6 +8,7 @@
 // editing or deleting a food later never changes your history.
 import { DEFAULT_PROFILE, DEFAULT_TARGETS, DEFAULT_BURN, DEFAULT_SUPPLEMENTS, MEALS } from './plan.js';
 import { isValidISO } from './util.js';
+import { mirrorNativePreference } from './native.js';
 
 const MEAL_IDS = MEALS.map((m) => m.id);
 const LAST_BACKUP_KEY = 'planner.lastBackup';
@@ -78,7 +79,9 @@ export function loadState(storage = globalThis.localStorage) {
 
 export function saveState(state, storage = globalThis.localStorage) {
   try {
-    storage?.setItem(STORAGE_KEY, JSON.stringify(state));
+    const serialized = JSON.stringify(state);
+    storage?.setItem(STORAGE_KEY, serialized);
+    mirrorNativePreference(STORAGE_KEY, serialized);
     return true;
   } catch (e) {
     console.error('Could not save', e);
@@ -98,7 +101,8 @@ export function getLastBackup(storage = globalThis.localStorage) {
   try { return storage?.getItem(LAST_BACKUP_KEY) || null; } catch { return null; }
 }
 export function markBackedUp(storage = globalThis.localStorage) {
-  try { storage?.setItem(LAST_BACKUP_KEY, new Date().toISOString()); } catch { /* ignore */ }
+  const timestamp = new Date().toISOString();
+  try { storage?.setItem(LAST_BACKUP_KEY, timestamp); mirrorNativePreference(LAST_BACKUP_KEY, timestamp); } catch { /* ignore */ }
 }
 
 export function exportJSON(state) {

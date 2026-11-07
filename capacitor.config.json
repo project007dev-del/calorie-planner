@@ -1,0 +1,8 @@
+{
+  "appId": "io.github.project007dev.calorieplanner",
+  "appName": "Calorie & Exercise Planner",
+  "webDir": "www",
+  "server": { "androidScheme": "https" },
+  "android": { "allowMixedContent": false, "minWebViewVersion": 110 },
+  "plugins": { "SystemBars": { "insetsHandling": "native", "initialViewportFitValueHint": "cover" } }
+}

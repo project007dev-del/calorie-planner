@@ -3,6 +3,7 @@ import { loadState, saveState } from './store.js';
 import { todayISO, addDays, fmtDate, isValidISO } from './util.js';
 import { toast, historySettled } from './ui.js';
 import { applyTheme, toggleTheme } from './theme.js';
+import { isNativeRuntime } from './native.js';
 import * as today from './views/today.js';
 import * as food from './views/food.js';
 import * as workout from './views/workout.js';
@@ -19,13 +20,14 @@ const dateInput = document.getElementById('dateInput');
 
 let askedPersist = false;
 const ctx = {
+  native: isNativeRuntime(),
   state: loadState(),
   ui: { date: todayISO() },
   installPrompt: null, // set by "beforeinstallprompt" (Chrome / Android)
   save() {
     if (!saveState(ctx.state)) { toast('Could not save – storage may be full'); return; }
     // Ask the browser not to clear the planner's storage when space runs low.
-    if (!askedPersist && navigator.storage?.persist) {
+    if (!ctx.native && !askedPersist && navigator.storage?.persist) {
       askedPersist = true;
       navigator.storage.persisted().then((p) => p || navigator.storage.persist()).catch(() => {});
     }
@@ -128,10 +130,12 @@ window.addEventListener('storage', (e) => {
 });
 
 window.addEventListener('hashchange', () => { render(); window.scrollTo(0, 0); });
+window.addEventListener('planner:native-storage-error', () => toast('Could not save to device storage. Please export a backup.'));
+window.addEventListener('planner:native-link-error', () => toast('Could not open the link. Please try again.'));
 if (!location.hash) history.replaceState(null, '', '#/today');
 render();
 
-if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1')) {
+if (!ctx.native && 'serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1')) {
   navigator.serviceWorker.register('./sw.js').catch((e) => console.warn('Service worker not registered', e));
 }
 
