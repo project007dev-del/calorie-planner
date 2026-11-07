@@ -50,6 +50,49 @@ test('current 7-day weight average feeds recommendations; future weigh-ins are e
   assert.equal(dailyRecommendation(state, date).weight, 77);
 });
 
+test('light and heavy bulking use distinct bounded surpluses and consistent macros', () => {
+  const state = adult({ goalMode: 'gain', bulkIntensity: 'light' });
+  const before = structuredClone(state);
+  const light = dailyRecommendation(state, date);
+  assert.equal(light.bulk.id, 'light');
+  assert.ok(Math.abs(light.adjustment - Math.min(200, light.maintenance * 0.05)) < 1e-8);
+  assert.deepEqual(state, before);
+  state.profile.bulkIntensity = 'heavy';
+  const heavy = dailyRecommendation(state, date);
+  assert.equal(heavy.bulk.id, 'heavy');
+  assert.ok(Math.abs(heavy.adjustment - Math.min(400, heavy.maintenance * 0.10)) < 1e-8);
+  assert.ok(heavy.targets.kcal > light.targets.kcal);
+  assert.ok(Math.abs(heavy.targets.kcal - (heavy.targets.protein * 4 + heavy.targets.carbs * 4 + heavy.targets.fat * 9)) <= 2);
+  state.burn.baseKcal = 5500;
+  assert.equal(dailyRecommendation(state, date).adjustment, 400);
+  state.profile.bulkIntensity = 'light';
+  assert.equal(dailyRecommendation(state, date).adjustment, 200);
+});
+
+test('automatic weight gain honors bulking intensity; loss and maintenance ignore it', () => {
+  const state = adult({ goalWeightKg: 90, bulkIntensity: 'heavy' });
+  assert.equal(dailyRecommendation(state, date).bulk.id, 'heavy');
+  for (const goalMode of ['lose', 'maintain']) {
+    state.profile.goalMode = goalMode;
+    const rec = dailyRecommendation(state, date);
+    assert.equal(rec.bulk, null);
+    assert.ok(rec.adjustment <= 0);
+  }
+  state.profile.goalMode = 'gain';
+  state.profile.bulkIntensity = 'invalid';
+  assert.equal(dailyRecommendation(state, date).available, false);
+});
+
+test('older profiles and backups default to light bulking without changing saved targets', () => {
+  const state = adult({ goalWeightKg: 90 });
+  delete state.profile.bulkIntensity;
+  assert.equal(dailyRecommendation(state, date).bulk.id, 'light');
+  const restored = normalize(state);
+  assert.equal(restored.profile.bulkIntensity, 'light');
+  assert.deepEqual(restored.targets, state.targets);
+  assert.equal(importJSON(exportJSON({ ...restored, profile: { ...restored.profile, bulkIntensity: 'heavy' } })).profile.bulkIntensity, 'heavy');
+});
+
 test('incomplete, underage, special-context and unsuitable-weight profiles get no auto targets', () => {
   assert.equal(dailyRecommendation(defaultState(), date).available, false);
   for (const profile of [{ age: 17 }, { nutritionContext: 'special' }, { goalWeightKg: 45 }, { startWeightKg: 45 }, { startWeightKg: 140 }]) {

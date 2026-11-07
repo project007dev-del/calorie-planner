@@ -2,6 +2,8 @@
 // Everything here can be changed in Settings; this file is only the starting point.
 import { parseISO } from './util.js';
 
+export const APP_VERSION = '1.3.0';
+
 // Personal stats start blank: the app asks for them on first launch and keeps
 // them only on the device (nothing personal is stored in the code).
 export const DEFAULT_PROFILE = {
@@ -16,6 +18,7 @@ export const DEFAULT_PROFILE = {
   activity: 'Moderately active',
   activityLevel: 'light', // everyday movement only; planned workouts are added separately
   goalMode: 'auto',
+  bulkIntensity: 'light',
   dietStyle: 'auto',
   nutritionContext: 'general',
   strengthDays: 5,

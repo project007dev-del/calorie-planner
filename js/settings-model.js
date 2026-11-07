@@ -30,11 +30,13 @@ export function parseSettings(section, values) {
     const choices = {
       sex: ['male', 'female'], activityLevel: ['sedentary', 'light', 'active', 'physical'],
       goalMode: ['auto', 'lose', 'maintain', 'gain'], dietStyle: ['auto', 'balanced', 'protein', 'plant'],
+      bulkIntensity: ['light', 'heavy'],
       nutritionContext: ['general', 'special'],
     };
     for (const [key, allowed] of Object.entries(choices)) {
-      if (!allowed.includes(values[key])) throw new Error(`Choose a valid ${key === 'sex' ? 'sex' : 'profile option'}`);
-      result[key] = values[key];
+      const value = key === 'bulkIntensity' ? values[key] ?? 'light' : values[key];
+      if (!allowed.includes(value)) throw new Error(`Choose a valid ${key === 'sex' ? 'sex' : 'profile option'}`);
+      result[key] = value;
     }
   }
   return result;

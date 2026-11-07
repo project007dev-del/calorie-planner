@@ -1,9 +1,9 @@
 // Settings: profile, targets, burn model, supplements, foods, backup.
 import { esc, fmt, fmtDate, fmtLongDate, num, numOrNull, uid, todayISO, isValidISO, diffDays } from '../util.js';
 import { importJSON, defaultState, getLastBackup } from '../store.js';
-import { DEFAULT_BURN, profileComplete } from '../plan.js';
+import { APP_VERSION, DEFAULT_BURN, profileComplete } from '../plan.js';
 import { bmrMifflin, currentWeight, suggestBaseKcal, suppSchedule, scheduleLabel, nextDue } from '../calc.js';
-import { ACTIVITY_LEVELS, DIET_STYLES, dailyRecommendation } from '../recommendations.js';
+import { ACTIVITY_LEVELS, DIET_STYLES, BULK_INTENSITIES, dailyRecommendation } from '../recommendations.js';
 import { parseSettings } from '../settings-model.js';
 import { openSheet, confirmSheet, toast, formValues, backupNow } from '../ui.js';
 import { getThemeMode, setThemeMode } from '../theme.js';
@@ -14,7 +14,7 @@ const select = (name, label, value, options) => `<label class="field"><span>${la
 
 function recommendationCard(rec) {
   if (!rec.available) return `<div class="recommendation"><h3>Your recommendation</h3><p class="small">${esc(rec.reason)}</p></div>`;
-  const goalLabel = { lose: 'Gradual fat loss', maintain: 'Maintain weight', gain: 'Gradual weight gain' }[rec.goal];
+  const goalLabel = rec.bulk?.label || { lose: 'Gradual fat loss', maintain: 'Maintain weight' }[rec.goal];
   return `<div class="recommendation" data-recommendation>
     <div class="small muted">Based on your saved profile and burn settings</div>
     <h3>${esc(rec.style.label)}</h3>
@@ -26,7 +26,8 @@ function recommendationCard(rec) {
       <div><b>${fmt(rec.targets.carbs)} g</b><span>carbs</span></div>
       <div><b>${fmt(rec.targets.fat)} g</b><span>fat</span></div>
     </div>
-    <p class="small">Estimated maintenance: <b>${fmt(rec.maintenance)} kcal/day</b>, including ${rec.strengthDays} lifting days and ${fmt(rec.cardioMinutes)} jog minutes per week. ${rec.goal === 'maintain' ? 'The starting target matches maintenance.' : `The starting target uses a ${rec.goal === 'lose' ? '10% deficit (up to 300 kcal)' : '5% surplus (up to 200 kcal)'}.`}</p>
+    <p class="small">Estimated maintenance: <b>${fmt(rec.maintenance)} kcal/day</b>, including ${rec.strengthDays} lifting days and ${fmt(rec.cardioMinutes)} jog minutes per week. ${rec.goal === 'maintain' ? 'The starting target matches maintenance.' : `The starting target uses a ${rec.goal === 'lose' ? '10% deficit (up to 300 kcal)' : `${rec.bulk.percent}% surplus (up to ${rec.bulk.maxKcal} kcal)`}.`}</p>
+    ${rec.bulk ? `<p class="small">${esc(rec.bulk.label)} adds about <b>${fmt(rec.targets.kcal - rec.maintenance)} kcal/day</b> above estimated maintenance. Light bulking is the smaller starting surplus; heavy bulking adds more calories and can increase fat gain. Review your weight trend and training recovery after 2–3 weeks.</p>` : ''}
     ${Math.abs(rec.base - rec.suggestedBase) > 20 ? `<p class="small">Your saved everyday burn is ${fmt(rec.base)} kcal; your profile estimate is ${fmt(rec.suggestedBase)} kcal. Review <a href="#/settings/burn">Calorie burn</a> if your activity or profile has changed.</p>` : ''}
     <p class="small">Protein starts at ${rec.proteinPerKg} g/kg; fat is about 30% of calories and carbs fill the rest.${rec.proteinCapped ? ' Protein is capped at 30% of calories to leave room for other nutrients.' : ''}${rec.floorApplied ? ' The calorie target was raised to the app’s lower limit; it may not produce weight loss.' : ''}</p>
     <button class="btn btn-primary btn-block" type="button" data-fill-targets>Fill suggested targets</button>
@@ -41,6 +42,7 @@ function recommendationCard(rec) {
         <li><a href="https://www.who.int/news-room/fact-sheets/detail/healthy-diet" target="_blank" rel="noopener noreferrer">WHO: healthy diet</a></li>
         <li><a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC5477153/" target="_blank" rel="noopener noreferrer">ISSN: protein for healthy exercising adults (1.4–2.0 g/kg)</a></li>
         <li><a href="https://www.who.int/publications/i/item/9789240015128" target="_blank" rel="noopener noreferrer">WHO: physical activity guidelines</a></li>
+        <li><a href="https://link.springer.com/article/10.1186/s40798-023-00651-y" target="_blank" rel="noopener noreferrer">Energy-surplus study: larger surpluses can increase fat gain</a></li>
       </ul>
     </details>
   </div>`;
@@ -74,7 +76,7 @@ export function render(root, ctx, params = []) {
       <a class="chip" href="#/settings/backup" data-jump="backup-settings">Backup</a>
     </nav>
     <section class="card">
-      <div class="card-head"><div><h2>Appearance</h2><div class="sub">Also switch with the moon/sun button at the top</div></div></div>
+      <div class="card-head"><div><h2>Appearance</h2><div class="sub">Also switch with the moon/sun button at the top</div></div><span class="badge neutral">Version ${APP_VERSION}</span></div>
       <div class="radio-row" role="radiogroup" aria-label="Theme">
         ${[['system', 'System'], ['light', 'Light'], ['dark', 'Dark']].map(([v, l]) => `<label><input type="radio" name="theme" value="${v}" ${mode === v ? 'checked' : ''}><span>${l}</span></label>`).join('')}
       </div>
@@ -92,7 +94,9 @@ export function render(root, ctx, params = []) {
         ${field('waistGoalCm', 'Waist goal (cm)', p.waistGoalCm)}
       </div>
       <div class="stack profile-preferences">
-        ${select('goalMode', 'Nutrition goal', p.goalMode, [['auto', 'Use my current and goal weight'], ['lose', 'Gradual fat loss'], ['maintain', 'Maintain weight'], ['gain', 'Gradual weight gain']])}
+        ${select('goalMode', 'Nutrition goal', p.goalMode, [['auto', 'Use my current and goal weight'], ['lose', 'Gradual fat loss'], ['maintain', 'Maintain weight'], ['gain', 'Bulking / weight gain']])}
+        ${select('bulkIntensity', 'Bulking intensity', p.bulkIntensity || 'light', BULK_INTENSITIES.map((x) => [x.id, `${x.label} · +${x.percent}% (up to ${x.maxKcal} kcal/day)`]))}
+        <p class="tiny muted">Used for Bulking / weight gain, or when your automatic goal is weight gain. Save profile, then fill and save the suggested daily targets.</p>
         ${select('dietStyle', 'Preferred diet style', p.dietStyle, DIET_STYLES.map((d) => [d.id, d.label]))}
         ${select('activityLevel', 'Everyday movement (outside workouts)', activity.id, ACTIVITY_LEVELS.map((a) => [a.id, a.label]))}
         <div class="grid2">${field('strengthDays', 'Planned lifting days / week', p.strengthDays, 'type="number" min="0" max="7" step="1" inputmode="numeric"')}${field('cardioMinutes', 'Planned jog minutes / week', p.cardioMinutes, 'type="number" min="0" max="1260" inputmode="numeric"')}</div>

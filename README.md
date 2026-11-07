@@ -19,6 +19,10 @@ The original plan remains the starting preset. **Settings → Daily targets** no
 
 On first launch the app asks for your stats (age, height, weight, goal, waist). They are stored **only on your device** (browser storage), never in the code. Use **Settings → Back up now** regularly (on a phone it opens the share menu so you can save the file to Files or Google Drive); the app reminds you if it has been a while.
 
+**Food → Log → What to eat next** suggests measured portions, such as 100 g cooked chicken, based on the selected day’s remaining calories and macros. Counted shakes are included. Each suggestion is an alternative next portion: **Review & add** fills the existing food form, where you can change the grams and meal before logging it. Suggestions recalculate after you log food and stop once the calorie goal is reached.
+
+**Settings → Profile → Bulking intensity** offers **Light bulk** (+5%, up to 200 kcal/day) and **Heavy bulk** (+10%, up to 400 kcal/day), used for a weight-gain goal. Save your profile, then **Fill suggested targets → Save targets**. Existing saved targets are kept until you apply a suggestion. The version number appears in **Settings → Appearance**.
+
 ## Run it on your computer
 
 Needs [Node.js](https://nodejs.org) (no `npm install`, there are no dependencies).

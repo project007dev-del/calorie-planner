@@ -136,6 +136,16 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .recommendation-stats b, .recommendation-stats span { display: block; }
 .recommendation-stats b { font-size: 1.1rem; }
 .recommendation-stats span { color: var(--text-2); font-size: 0.75rem; }
+.food-goals > * + * { margin-top: 10px; }
+.remaining-targets { background: var(--primary-weak); border-radius: 10px; padding: 12px; }
+.food-suggestion { padding: 12px 0; }
+.food-suggestion > * + * { margin-top: 5px; }
+.food-suggestion .row { align-items: flex-start; gap: 10px; }
+.food-suggestion .btn { flex-shrink: 0; }
+.food-suggestion .title { overflow-wrap: anywhere; }
+@media (max-width: 380px) {
+  .food-suggestion .row { flex-wrap: wrap; }
+}
 .guidance { margin-top: 12px; }
 .guidance summary { cursor: pointer; font-weight: 600; padding: 8px 0; }
 .guidance p + p { margin-top: 8px; }

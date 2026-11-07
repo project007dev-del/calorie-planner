@@ -17,6 +17,10 @@ export const DIET_STYLES = [
   { id: 'protein', label: 'Higher protein for strength training' },
   { id: 'plant', label: 'Plant-forward Filipino diet' },
 ];
+export const BULK_INTENSITIES = [
+  { id: 'light', label: 'Light bulk', percent: 5, maxKcal: 200 },
+  { id: 'heavy', label: 'Heavy bulk', percent: 10, maxKcal: 400 },
+];
 
 export function dailyRecommendation(state, date) {
   const p = state.profile;
@@ -40,8 +44,9 @@ export function dailyRecommendation(state, date) {
   const goal = ['lose', 'maintain', 'gain'].includes(p.goalMode) ? p.goalMode
     : num(p.goalWeightKg) < weight - 0.5 ? 'lose' : num(p.goalWeightKg) > weight + 0.5 ? 'gain' : 'maintain';
   // Conservative app defaults, not a diet prescribed by the source agencies.
+  const bulk = goal === 'gain' ? BULK_INTENSITIES.find((x) => x.id === (p.bulkIntensity || 'light')) : null;
   const adjustment = goal === 'lose' ? -Math.min(300, maintenance * 0.10)
-    : goal === 'gain' ? Math.min(200, maintenance * 0.05) : 0;
+    : bulk ? Math.min(bulk.maxKcal, maintenance * bulk.percent / 100) : 0;
   const minimum = p.sex === 'female' ? 1200 : 1500;
   const kcal = Math.max(minimum, Math.round((maintenance + adjustment) / 10) * 10);
   const automaticStyle = p.dietStyle === 'auto';
@@ -57,7 +62,7 @@ export function dailyRecommendation(state, date) {
     ? ['Try munggo or tokwa with rice, cooked togue and pechay; add fruit.', 'Rotate beans, tofu, nuts and seeds. Include fortified milk or a suitable alternative.']
     : ['Pair fish, chicken, eggs or tokwa with a measured rice portion and plenty of vegetables.', 'Try tinola with sayote, grilled bangus with kangkong, or munggo with kalabasa; add fruit.'];
   return {
-    available: true, goal, style, automaticStyle, weight, bmi, maintenance, base,
+    available: true, goal, bulk, adjustment, style, automaticStyle, weight, bmi, maintenance, base,
     bmr: Math.round(bmrMifflin({ ...p, weightKg: weight })),
     suggestedBase: suggestBaseKcal(p, weight), strengthDays, cardioMinutes,
     proteinPerKg, proteinCapped: protein < requestedProtein, floorApplied: kcal > Math.round((maintenance + adjustment) / 10) * 10,

@@ -1,7 +1,7 @@
 // Service worker: makes the app installable and usable offline.
 // Strategy: network-first for same-origin files (so updates show up right away),
 // falling back to the cached copy when offline.
-const CACHE = 'planner-v3';
+const CACHE = 'planner-v4';
 const NETWORK_TIMEOUT_MS = 3000;
 const SHELL = [
   './',
@@ -17,6 +17,7 @@ const SHELL = [
   './js/foods.js',
   './js/calc.js',
   './js/recommendations.js',
+  './js/food-recommendations.js',
   './js/settings-model.js',
   './js/chart.js',
   './js/views/today.js',

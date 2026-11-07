@@ -8,6 +8,7 @@ import {
   foodHistory, summarizeFoodDays, foodUsage, per100FromServing, macroKcal, kcalStatus,
 } from '../calc.js';
 import { openSheet, confirmSheet, toast, stateBadge, subtabs, formValues } from '../ui.js';
+import { foodRecommendations } from '../food-recommendations.js';
 
 const TABS = [
   ['log', 'Log', '#/food/log'],
@@ -26,6 +27,41 @@ export function render(root, ctx, params) {
 const macroLine = (v) => `P ${fmt(v.protein)} · C ${fmt(v.carbs)} · F ${fmt(v.fat)} g`;
 const mealName = (id) => MEALS.find((m) => m.id === id)?.name || id;
 
+function portionRecommendations(rec, state) {
+  const labels = { kcal: 'calories', protein: 'protein', carbs: 'carbs', fat: 'fat' };
+  const remainingLine = (values) => `${fmt(values.kcal)} kcal · P ${fmt(values.protein, 1)} · C ${fmt(values.carbs, 1)} · F ${fmt(values.fat, 1)} g`;
+  let body;
+  if (rec.status === 'invalid') body = `<p class="small">${esc(rec.reason)}</p>`;
+  else if (rec.status === 'reached') {
+    const proteinGap = rec.remaining.protein >= 5;
+    body = `<p class="small">Your calorie goal is reached.${proteinGap ? ` You still have ${fmt(rec.remaining.protein, 1)} g of protein left; consider protein-rich swaps when planning meals.` : ' No extra portion is suggested.'}</p>`;
+  } else {
+    body = `<div class="recommendation-stats num remaining-targets" aria-label="Remaining intake for this day">
+      <div><b>${fmt(rec.remaining.kcal)}</b><span>kcal left</span></div>
+      <div><b>${fmt(rec.remaining.protein, 1)} g</b><span>protein left</span></div>
+      <div><b>${fmt(rec.remaining.carbs, 1)} g</b><span>carbs left</span></div>
+      <div><b>${fmt(rec.remaining.fat, 1)} g</b><span>fat left</span></div>
+    </div>`;
+    if (!rec.suggestions.length) body += '<p class="small">No practical portion fits the remaining calories. Review your food log and targets.</p>';
+    else body += `<p class="small muted">Focus on ${labels[rec.focus]}. Choose one option; portions update after you log food. ${state.profile.dietStyle === 'plant' ? 'Showing plant-based choices.' : ''}</p>
+      <ul class="list">${rec.suggestions.map((suggestion, index) => {
+        const food = findFood(state, suggestion.foodId);
+        const over = ['protein', 'carbs', 'fat'].filter((key) => suggestion.over[key] >= 1).map((key) => `${labels[key]} ${fmt(suggestion.over[key], 1)} g over target`);
+        const closesGap = rec.focus === 'kcal' ? suggestion.remainingAfter.kcal < 10 : suggestion.remainingAfter[rec.focus] < 0.05;
+        return `<li class="food-suggestion">
+          <div class="row between"><div class="grow"><div class="title"><b>${fmt(suggestion.grams)} g ${esc(suggestion.name)}</b></div><div class="meta">${esc(stateLabel(food, suggestion.state))} weight · ${closesGap ? `closes your ${labels[rec.focus]} gap` : `toward your ${labels[rec.focus]} goal`}</div></div>
+            <button class="btn btn-sm" type="button" data-suggest-food="${index}" aria-label="Review ${fmt(suggestion.grams)} grams of ${esc(suggestion.name)}">Review &amp; add</button></div>
+          <div class="small num"><b>${fmt(suggestion.nutrients.kcal)} kcal</b> · ${macroLine(suggestion.nutrients)}</div>
+          <p class="tiny muted num">Remaining after this portion: ${remainingLine(suggestion.remainingAfter)}.${over.length ? ` ${esc(over.join(' · '))}.` : ''}</p>
+        </li>`;
+      }).join('')}</ul>`;
+  }
+  return `<section class="card food-goals" aria-labelledby="food-goals-title">
+    <div class="card-head"><h2 id="food-goals-title">What to eat next</h2><a class="btn btn-sm" href="#/settings/targets">Daily targets</a></div>
+    ${body}<p class="tiny muted">Based on this day’s log, counted supplements and saved targets. Portions are estimates; review the weight and meal before adding.</p>
+  </section>`;
+}
+
 // =====================================================================
 // LOG
 // =====================================================================
@@ -35,6 +71,7 @@ function renderLog(root, ctx) {
   const day = getDay(state, date);
   const intake = dayIntake(day, state.supplements);
   const t = state.targets;
+  const recommendations = foodRecommendations(state, date);
 
   const meals = MEALS.map((m) => {
     const list = (day?.food || []).filter((e) => e.meal === m.id);
@@ -75,12 +112,17 @@ function renderLog(root, ctx) {
         <button class="btn btn-sm" data-newfood>+ New food</button>
       </div>
     </section>
+    ${portionRecommendations(recommendations, state)}
     ${meals}
     ${suppCard}
     <p class="muted small" style="text-align:center">Weigh food the way you log it: pick <b>Raw</b> for uncooked/dry weight, <b>Cooked</b> for cooked weight.</p>`;
 
   root.querySelectorAll('[data-add]').forEach((b) => b.addEventListener('click', () => openAddFood(ctx, { meal: b.dataset.add, date })));
   root.querySelectorAll('[data-edit]').forEach((b) => b.addEventListener('click', () => openEditEntry(ctx, date, b.dataset.edit)));
+  root.querySelectorAll('[data-suggest-food]').forEach((button) => button.addEventListener('click', () => {
+    const suggestion = recommendations.suggestions[Number(button.dataset.suggestFood)];
+    if (suggestion) openAddFood(ctx, { date, foodId: suggestion.foodId, state: suggestion.state, grams: suggestion.grams });
+  }));
   root.querySelector('[data-newfood]').addEventListener('click', () => openFoodForm(ctx, {}));
   root.querySelector('[data-copy]').addEventListener('click', () => copyYesterday(ctx, date));
   root.querySelector('[data-example]').addEventListener('click', () => loadExample(ctx, date));
