@@ -71,6 +71,8 @@ In **Workout → Plan**, preview the 2-, 3-, 4- or 5-day examples, or create a n
 
 Tap **View movement** in a session, the full workout list or the exercise library for an enlarged start/finish diagram and instructions. All 24 movements work offline, including both parts of the arms superset. Plan revisions and program position are included in backups; recorded workouts retain their own session snapshots. Planned session counts and minutes feed nutrition estimates, while actual burn only counts completed activity. Sand uses a charcoal/slate background, muted teal accents and warm beige controls.
 
+Food search, logs, recommendations and details use 28 small vector illustrations from one shared `icons/foods.svg` file: 6,645 bytes uncompressed (2,282 bytes with gzip). All 53 built-in foods have an illustration; custom foods use category fallbacks. The sheet is cached offline and included in the APK, with no remote image service or extra image library.
+
 ## Android APK
 
 The `android/` project packages the planner with Capacitor 8, bundled offline assets, native Preferences storage, Android Back handling and backup sharing. **Actions → Android APK** builds a test APK and uploads the **calorie-planner-android-debug** artifact. Import a web backup to move existing logs. Device testing and production signing are still required. See the [Android build and testing guide](docs/android-build.md).

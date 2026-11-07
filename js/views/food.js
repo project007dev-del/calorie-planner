@@ -9,6 +9,7 @@ import {
 } from '../calc.js';
 import { openSheet, confirmSheet, toast, stateBadge, subtabs, formValues } from '../ui.js';
 import { foodRecommendations } from '../food-recommendations.js';
+import { foodVisual } from '../food-visuals.js';
 
 const TABS = [
   ['log', 'Log', '#/food/log'],
@@ -35,7 +36,7 @@ function portionRow(suggestion, index, focus, state) {
   const over = ['protein', 'carbs', 'fat'].filter((key) => suggestion.over[key] >= 1).map((key) => `${nutrientLabels[key]} ${fmt(suggestion.over[key], 1)} g over target`);
   const closesGap = focus === 'kcal' ? suggestion.remainingAfter.kcal < 10 : suggestion.remainingAfter[focus] < 0.05;
   return `<li class="food-suggestion">
-    <div class="row between"><div class="grow"><div class="title"><b>${fmt(suggestion.grams)} g ${esc(suggestion.name)}</b></div><div class="meta">${esc(stateLabel(food, suggestion.state))} weight · ${closesGap ? `closes your ${nutrientLabels[focus]} gap` : `toward your ${nutrientLabels[focus]} goal`}</div></div>
+    <div class="row between"><div class="grow"><div class="food-label">${foodVisual(food, 'sm')}<div class="title grow"><b>${fmt(suggestion.grams)} g ${esc(suggestion.name)}</b></div></div><div class="meta">${esc(stateLabel(food, suggestion.state))} weight · ${closesGap ? `closes your ${nutrientLabels[focus]} gap` : `toward your ${nutrientLabels[focus]} goal`}</div></div>
       <button class="btn btn-sm" type="button" data-suggest-food="${index}" aria-label="Review ${fmt(suggestion.grams)} grams of ${esc(suggestion.name)}">Review &amp; add</button></div>
     <div class="small num"><b>${fmt(suggestion.nutrients.kcal)} kcal</b> · ${macroLine(suggestion.nutrients)}</div>
     <p class="tiny muted num">Remaining after this portion: ${remainingLine(suggestion.remainingAfter)}.${over.length ? ` ${esc(over.join(' · '))}.` : ''}</p>
@@ -96,6 +97,7 @@ function renderLog(root, ctx) {
     const rows = list.map((e) => {
       const v = entryNutrients(e);
       return `<li><button class="item" data-edit="${esc(e.id)}">
+        ${foodVisual({ ...findFood(state, e.foodId), foodId: e.foodId })}
         <span class="grow"><span class="title">${esc(e.name)}</span> ${stateBadge(e.state)}<br>
           <span class="meta num">${fmt(e.grams)} g · ${macroLine(v)}</span></span>
         <span class="val"><b>${fmt(v.kcal)}</b> <span class="muted small">kcal</span></span>
@@ -176,6 +178,7 @@ function foodRow(f) {
   const states = statesOf(f);
   const vals = states.map((s) => `${stateLabel(f, s)} ${fmt(f[s].kcal)}`).join(' · ');
   return `<li><button type="button" class="item" data-pick="${esc(f.id)}">
+    ${foodVisual(f)}
     <span class="grow"><span class="title">${esc(f.name)}</span> ${f.custom ? '<span class="badge custom">MINE</span>' : ''}<br>
       <span class="meta num">kcal/100 g: ${esc(vals)}</span></span>
   </button></li>`;
@@ -250,8 +253,8 @@ export function openAddFood(ctx, { meal = mealForNow(), date, foodId = null, sta
         let cur = preset.state && food[preset.state] ? preset.state : food.cooked ? 'cooked' : statesOf(food)[0];
         detail.innerHTML = `
           <button type="button" class="btn btn-sm" data-back>‹ Back to list</button>
-          <div><div class="strong" style="font-size:1.1rem">${esc(food.name)}</div>
-            <div class="muted small">${esc(categoryName(food.category))}${food.custom ? ' · my food' : ''}</div></div>
+          <div class="food-label">${foodVisual(food, 'lg')}<div><div class="strong" style="font-size:1.1rem">${esc(food.name)}</div>
+            <div class="muted small">${esc(categoryName(food.category))}${food.custom ? ' · my food' : ''}</div></div></div>
           <div class="field"><span>Weighed</span>${stateRadios(food, cur)}</div>
           <div class="grid2">
             <label class="field"><span>Grams</span><input class="input num" name="grams" inputmode="decimal" placeholder="0" value="${preset.grams ?? ''}" autocomplete="off"></label>
@@ -337,7 +340,7 @@ function openEditEntry(ctx, date, entryId) {
   openSheet({
     title: 'Edit food',
     body: `
-      <div><span class="strong" style="font-size:1.1rem">${esc(entry.name)}</span></div>
+      <div class="food-label">${foodVisual({ ...food, foodId: entry.foodId }, 'lg')}<span class="strong" style="font-size:1.1rem">${esc(entry.name)}</span></div>
       <div class="field"><span>Weighed</span>${stateRadios(view, entry.state)}</div>
       <div class="grid2">
         <label class="field"><span>Grams</span><input class="input num" name="grams" inputmode="decimal" value="${entry.grams}"></label>
@@ -518,7 +521,7 @@ function renderMyFoods(root, ctx) {
     const needle = query.trim().toLowerCase();
     const matched = new Set(searchFoods(state, query).map((food) => food.id));
     const mine = state.customFoods.filter((c) => matched.has(c.id));
-    mineEl.innerHTML = mine.length ? `<ul class="list" style="margin-top:8px">${mine.map((c) => `<li><button class="item" data-food="${esc(c.id)}">
+    mineEl.innerHTML = mine.length ? `<ul class="list" style="margin-top:8px">${mine.map((c) => `<li><button class="item" data-food="${esc(c.id)}">${foodVisual(c)}
       <span class="grow"><span class="title">${esc(c.name)}</span> ${stateBadge(c.state)}<br>
         <span class="meta num">${esc(categoryName(c.category))} · per 100 g: ${fmt(c.per100.kcal)} kcal · P ${fmt(c.per100.protein, 1)} · C ${fmt(c.per100.carbs, 1)} · F ${fmt(c.per100.fat, 1)}</span></span>
       <span class="muted">›</span></button></li>`).join('')}</ul>`
@@ -528,7 +531,7 @@ function renderMyFoods(root, ctx) {
       if (!list.length) return '';
       return `<tr><th colspan="5" style="padding-top:12px">${esc(cat.name)}</th></tr>` + list.map((f) => statesOf(f).map((st, i) => `
         <tr data-food="${esc(f.id)}" tabindex="0" role="button" aria-label="${esc(f.name)}, ${st}" style="cursor:pointer">
-          <td>${i === 0 ? esc(f.name) : ''} ${stateBadge(st)}</td>
+          <td><span class="food-table-name">${i === 0 ? foodVisual(f, 'table') + esc(f.name) : ''} ${stateBadge(st)}</span></td>
           <td class="r">${fmt(f[st].kcal)}</td><td class="r">${fmt(f[st].protein, 1)}</td><td class="r">${fmt(f[st].carbs, 1)}</td><td class="r">${fmt(f[st].fat, 1)}</td>
         </tr>`).join('')).join('');
     }).join('');
@@ -565,6 +568,7 @@ function openFoodDetail(ctx, foodId) {
   openSheet({
     title: food.name,
     body: `
+      <div class="food-detail-visual">${foodVisual(food, 'lg')}<span class="small muted">${esc(categoryName(food.category))}</span></div>
       <table class="table"><thead><tr><th>Per 100 g</th><th class="r">kcal</th><th class="r">P</th><th class="r">C</th><th class="r">F</th></tr></thead><tbody>${valueRows}</tbody></table>
       ${servingLine}
       ${food.note ? `<p class="small muted">${esc(food.note)}</p>` : ''}
@@ -662,7 +666,7 @@ function renderDayDetail(root, ctx, date) {
     const tot = foodTotals(day, m.id);
     return `<h3 style="margin-top:14px">${esc(m.name)} <span class="muted small">· ${fmt(tot.kcal)} kcal</span></h3>
       <table class="table"><thead><tr><th>Food</th><th class="r">g</th><th class="r">kcal</th><th class="r">P</th><th class="r">C</th><th class="r">F</th></tr></thead><tbody>
-      ${list.map((e) => { const v = entryNutrients(e); return `<tr><td>${esc(e.name)} ${stateBadge(e.state)}</td><td class="r">${fmt(e.grams)}</td><td class="r">${fmt(v.kcal)}</td><td class="r">${fmt(v.protein)}</td><td class="r">${fmt(v.carbs)}</td><td class="r">${fmt(v.fat)}</td></tr>`; }).join('')}
+      ${list.map((e) => { const v = entryNutrients(e); return `<tr><td><span class="food-table-name">${foodVisual({ ...findFood(state, e.foodId), foodId: e.foodId }, 'table')}${esc(e.name)} ${stateBadge(e.state)}</span></td><td class="r">${fmt(e.grams)}</td><td class="r">${fmt(v.kcal)}</td><td class="r">${fmt(v.protein)}</td><td class="r">${fmt(v.carbs)}</td><td class="r">${fmt(v.fat)}</td></tr>`; }).join('')}
       </tbody></table>`;
   }).join('');
   const supps = state.supplements.filter((s) => day?.supps?.[s.id]);
