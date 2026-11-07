@@ -1,12 +1,13 @@
 import { esc, fmt, fmtDate, fmtSigned, fmtLongDate, numOrNull, todayISO, diffDays } from '../util.js';
 import { getDay, getLastBackup } from '../store.js';
-import { planDayById, planDayForDate, proteinAdvice, profileComplete, DEFAULT_BURN, mealForNow } from '../plan.js';
+import { planDayById, planDayForDate, profileComplete, DEFAULT_BURN, mealForNow } from '../plan.js';
 import {
   dayIntake, dayBalance, strengthStatus, cardioStatus, projection, hasFood, weightEntries, avgInWindow,
   suggestBaseKcal, suppSchedule, isScheduled, isDue, nextDue, suppStreak, scheduleLabel,
 } from '../calc.js';
-import { ring, meter, alertBox, toast, backupNow } from '../ui.js';
-import { openAddFood } from './food.js';
+import { ring, meter, toast, backupNow } from '../ui.js';
+import { foodRecommendations } from '../food-recommendations.js';
+import { openAddFood, portionRecommendations, wireFoodRecommendations } from './food.js';
 
 export function render(root, ctx) {
   const { state } = ctx;
@@ -14,13 +15,14 @@ export function render(root, ctx) {
   const day = getDay(state, date);
   const t = state.targets;
   const intake = dayIntake(day, state.supplements);
+  const recommendations = foodRecommendations(state, date);
   const bal = dayBalance(state, date);
   const isToday = date === todayISO();
 
   // ----- Calories & macros -----
   const caloriesCard = `
-    <section class="card" aria-labelledby="h-cal">
-      <div class="card-head"><h2 id="h-cal">Calories</h2>
+    <section class="card calories-card" aria-labelledby="h-cal">
+      <div class="card-head"><h2 id="h-cal">Calories in</h2>
         <div class="row"><a class="btn btn-sm" href="#/food/log">Food log</a><button class="btn btn-sm btn-primary" data-quickadd>+ Add food</button></div></div>
       <div class="ring-wrap">
         ${ring(intake.total.kcal, t.kcal)}
@@ -34,15 +36,9 @@ export function render(root, ctx) {
       ${meter('m-protein', 'Protein', intake.total.protein, t.protein)}
       ${meter('m-carbs', 'Carbs', intake.total.carbs, t.carbs)}
       ${meter('m-fat', 'Fat', intake.total.fat, t.fat)}
+      ${portionRecommendations(recommendations, state, { compact: true, hasIntake: hasFood(day) || intake.total.kcal > 0 })}
       <p class="small" style="margin-top:12px"><a href="#/settings/targets">Review diet &amp; daily target recommendations</a></p>
     </section>`;
-
-  // ----- Protein backup rule -----
-  let proteinCard = '';
-  if (hasFood(day)) {
-    const adv = proteinAdvice(intake.total.protein, t.protein, !!day?.supps?.shake2);
-    proteinCard = alertBox(adv.level === 'ok' ? 'ok' : 'warn', `Protein check: ${adv.text}`);
-  }
 
   // ----- Energy balance -----
   const p = projection(state, date);
@@ -156,9 +152,10 @@ export function render(root, ctx) {
       <button class="btn btn-sm" data-backup>Back up</button></section>` : '';
 
   const needsSetup = !profileComplete(state.profile);
-  root.innerHTML = (needsSetup ? setupCard(state.profile) : '') + caloriesCard + proteinCard + balanceCard + suppCard + workoutCard + bodyCard + backupCard;
+  root.innerHTML = (needsSetup ? setupCard(state.profile) : '') + caloriesCard + balanceCard + suppCard + workoutCard + bodyCard + backupCard;
   if (needsSetup) wireSetup(root, ctx);
   root.querySelector('[data-quickadd]').addEventListener('click', () => openAddFood(ctx, { meal: mealForNow(), date }));
+  wireFoodRecommendations(root, ctx, recommendations, date);
   root.querySelector('[data-backup]')?.addEventListener('click', async () => { if (await backupNow(state)) ctx.render(); });
 
   root.querySelectorAll('[data-supp]').forEach((cb) => cb.addEventListener('change', () => {

@@ -5,13 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#f3f4f1">
   <script>
-    // Apply the saved light/dark choice before the first paint (no flash).
+    // Apply the saved theme before the first paint (no flash).
     (function () {
       var m = 'system';
-      try { m = localStorage.getItem('planner.theme') || 'system'; } catch (e) {}
-      var dark = m === 'dark' || (m !== 'light' && window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches);
-      document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
-      document.querySelector('meta[name="theme-color"]').setAttribute('content', dark ? '#0d0d0d' : '#f3f4f1');
+      try { var saved = localStorage.getItem('planner.theme'); if (['light', 'dark', 'sand'].indexOf(saved) >= 0) m = saved; } catch (e) {}
+      var theme = m === 'system' ? (window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : m;
+      var colors = { light: '#f3f4f1', dark: '#0d0d0d', sand: '#f0ece2' };
+      document.documentElement.setAttribute('data-theme', theme);
+      document.querySelector('meta[name="theme-color"]').setAttribute('content', colors[theme]);
     })();
   </script>
   <meta name="description" content="Log food in grams (raw or cooked), supplements and workouts, and see your expected weight change.">

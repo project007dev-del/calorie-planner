@@ -60,6 +60,29 @@
   --shadow: none;
 }
 
+/* Sand palette: cream, beige, tan and slate. */
+:root[data-theme="sand"] {
+  color-scheme: light;
+  --bg: #f0ece2;
+  --card: #dfd3c3;
+  --text: #27343c;
+  --text-2: #465861;
+  --muted: #465861;
+  --line: #c7b198;
+  --axis: #a28f79;
+  --primary: #596e79;
+  --primary-ink: #ffffff;
+  --primary-weak: #f0ece2;
+  --s1: #596e79;
+  --s1-weak: #f0ece2;
+  --s2: #966546;
+  --s2-weak: #f0ece2;
+  --s3: #63735a;
+  --s3-weak: #f0ece2;
+  --shadow: 0 1px 3px rgba(89, 110, 121, 0.08);
+}
+:root[data-theme="sand"] a:not(.btn) { color: var(--text-2); }
+
 /* ---------- Base ---------- */
 * { box-sizing: border-box; }
 html, body { margin: 0; }
@@ -137,6 +160,8 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .recommendation-stats b { font-size: 1.1rem; }
 .recommendation-stats span { color: var(--text-2); font-size: 0.75rem; }
 .food-goals > * + * { margin-top: 10px; }
+.intake-recommendation { margin-top: 16px; border-top: 1px solid var(--line); padding-top: 14px; }
+.calories-card > .card-head { flex-wrap: wrap; }
 .remaining-targets { background: var(--primary-weak); border-radius: 10px; padding: 12px; }
 .food-suggestion { padding: 12px 0; }
 .food-suggestion > * + * { margin-top: 5px; }

@@ -14,12 +14,14 @@ The original plan remains the starting preset. **Settings → Daily targets** no
 - **Workout history:** past sessions, a weekly summary, a 5-week calendar and a strength chart for each exercise.
 - **Expected weight change:** your kcal per day and kg per week, the date you'd reach your goal weight, a weight chart with a 7-day average, and the plan's adjustment alerts.
 
-- **Light / dark mode:** follows your phone, or pick Light or Dark with the moon/sun button or in Settings → Appearance.
+- **Appearance:** follow your phone, or choose Light, Dark or **Sand** in Settings → Appearance. Sand uses cream `#f0ece2`, beige `#dfd3c3`, tan `#c7b198` and slate `#596e79`. The moon/sun button switches to dark and back to your last chosen light palette.
 - **Phone friendly:** the Back button/gesture closes pop-ups, works offline, and Settings has an Install button where the browser supports it.
 
 On first launch the app asks for your stats (age, height, weight, goal, waist). They are stored **only on your device** (browser storage), never in the code. Use **Settings → Back up now** regularly (on a phone it opens the share menu so you can save the file to Files or Google Drive); the app reminds you if it has been a while.
 
 **Food → Log → What to eat next** suggests measured portions, such as 100 g cooked chicken, based on the selected day’s remaining calories and macros. Counted shakes are included. Each suggestion is an alternative next portion: **Review & add** fills the existing food form, where you can change the grams and meal before logging it. Suggestions recalculate after you log food and stop once the calorie goal is reached.
+
+The same recommendations appear in **Today → Calories in** after you log food or a caloric supplement. They use what you actually entered, including custom foods and edited portions, so the example meal plan is optional. Today shows one suggestion, with alternatives under **More food options**. Adding, editing or deleting food, or ticking a shake, recalculates the remaining intake and suggestions against your saved daily targets.
 
 Choose **Settings → Profile → Nutrition goal → Bulking / weight gain** to reveal **Bulking intensity**: **Light bulk** (+5%, up to 200 kcal/day) or **Heavy bulk** (+10%, up to 400 kcal/day). Other goals hide that control; an automatic weight-gain goal uses the smaller gradual-gain surplus. Save your profile, then **Fill suggested targets → Save targets**. Existing saved targets are kept until you apply a suggestion. The version number appears in **Settings → Appearance**.
 

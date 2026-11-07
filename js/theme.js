@@ -1,14 +1,15 @@
-// Light / dark theme. This is a device preference, kept apart from the planner
-// data (localStorage key "planner.theme" = "light" | "dark"; missing = follow the system).
+// Appearance is a device preference, kept apart from the planner data.
 // index.html applies it before the first paint so the page never flashes.
 const KEY = 'planner.theme';
-const BAR_COLORS = { light: '#f3f4f1', dark: '#0d0d0d' }; // match --bg for the phone status bar
+const LIGHT_KEY = 'planner.lightTheme';
+const BAR_COLORS = { light: '#f3f4f1', dark: '#0d0d0d', sand: '#f0ece2' }; // match --bg for the phone status bar
+export const THEME_OPTIONS = [['system', 'System'], ['light', 'Light'], ['dark', 'Dark'], ['sand', 'Sand']];
 const media = window.matchMedia('(prefers-color-scheme: dark)');
 
 export function getThemeMode() {
   try {
     const m = localStorage.getItem(KEY);
-    return m === 'light' || m === 'dark' ? m : 'system';
+    return Object.hasOwn(BAR_COLORS, m) ? m : 'system';
   } catch {
     return 'system';
   }
@@ -22,7 +23,9 @@ export function applyTheme() {
   document.querySelector('meta[name="theme-color"]')?.setAttribute('content', BAR_COLORS[theme]);
   const btn = document.getElementById('themeToggle');
   if (btn) {
-    const label = theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode';
+    let lightTheme = 'light';
+    try { if (localStorage.getItem(LIGHT_KEY) === 'sand') lightTheme = 'sand'; } catch { /* use the default light theme */ }
+    const label = theme === 'dark' ? `Switch to ${lightTheme === 'sand' ? 'Sand theme' : 'light mode'}` : 'Switch to dark mode';
     btn.setAttribute('aria-label', label);
     btn.title = label;
   }
@@ -30,15 +33,20 @@ export function applyTheme() {
 
 export function setThemeMode(mode) {
   try {
-    if (mode === 'light' || mode === 'dark') localStorage.setItem(KEY, mode);
+    if (Object.hasOwn(BAR_COLORS, mode)) {
+      localStorage.setItem(KEY, mode);
+      if (mode !== 'dark') localStorage.setItem(LIGHT_KEY, mode);
+    }
     else localStorage.removeItem(KEY);
   } catch { /* private mode: still apply for this session */ }
   applyTheme();
 }
 
-/** Header button: flip between light and dark (an explicit choice). */
+/** Header button: switch to dark, then return to the last chosen light palette. */
 export function toggleTheme() {
-  setThemeMode(resolvedTheme() === 'dark' ? 'light' : 'dark');
+  let lightTheme = 'light';
+  try { if (localStorage.getItem(LIGHT_KEY) === 'sand') lightTheme = 'sand'; } catch { /* use the default light theme */ }
+  setThemeMode(resolvedTheme() === 'dark' ? lightTheme : 'dark');
 }
 
 const onSystemChange = () => { if (getThemeMode() === 'system') applyTheme(); };

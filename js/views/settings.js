@@ -6,7 +6,7 @@ import { bmrMifflin, currentWeight, suggestBaseKcal, suppSchedule, scheduleLabel
 import { ACTIVITY_LEVELS, DIET_STYLES, BULK_INTENSITIES, dailyRecommendation } from '../recommendations.js';
 import { parseSettings } from '../settings-model.js';
 import { openSheet, confirmSheet, toast, formValues, backupNow } from '../ui.js';
-import { getThemeMode, setThemeMode } from '../theme.js';
+import { THEME_OPTIONS, getThemeMode, setThemeMode } from '../theme.js';
 
 const field = (name, label, value, attrs = 'inputmode="decimal"') =>
   `<label class="field"><span>${label}</span><input class="input num" name="${name}" value="${esc(value ?? '')}" ${attrs}></label>`;
@@ -81,7 +81,7 @@ export function render(root, ctx, params = []) {
     <section class="card">
       <div class="card-head"><h2>Appearance</h2><span class="badge neutral">Version ${APP_VERSION}</span></div>
       <div class="radio-row" role="radiogroup" aria-label="Theme">
-        ${[['system', 'System'], ['light', 'Light'], ['dark', 'Dark']].map(([v, l]) => `<label><input type="radio" name="theme" value="${v}" ${mode === v ? 'checked' : ''}><span>${l}</span></label>`).join('')}
+        ${THEME_OPTIONS.map(([v, l]) => `<label><input type="radio" name="theme" value="${v}" ${mode === v ? 'checked' : ''}><span>${l}</span></label>`).join('')}
       </div>
     </section>
 

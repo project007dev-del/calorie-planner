@@ -41,6 +41,28 @@ test('logging a suggested portion recalculates the remaining intake', () => {
   assert.equal(dayIntake(state.days[date], state.supplements).total.protein, 145);
 });
 
+test('unplanned custom food and edits change the nutrient focus without changing daily targets', () => {
+  const state = defaultState();
+  state.targets = { kcal: 2000, protein: 60, carbs: 200, fat: 60 };
+  const targets = { ...state.targets };
+  state.customFoods.push({ id: 'my-lunch', name: 'My own lunch', category: 'other', state: 'cooked', per100: { kcal: 200, protein: 30, carbs: 5, fat: 6 } });
+  const entry = makeEntry(findFood(state, 'my-lunch'), 'cooked', 200, 'lunch', 'lunch-entry');
+  state.days[date] = { food: [entry], supps: {} };
+  const original = foodRecommendations(state, date);
+  assert.equal(original.total.kcal, 400);
+  assert.equal(original.remaining.protein, 0);
+  assert.equal(original.focus, 'carbs');
+  entry.grams = 100;
+  const edited = foodRecommendations(state, date);
+  assert.equal(edited.total.kcal, 200);
+  assert.equal(edited.remaining.protein, 30);
+  assert.equal(edited.focus, 'protein');
+  assert.notDeepEqual(edited.suggestions.map((s) => s.foodId), original.suggestions.map((s) => s.foodId));
+  state.days[date].food = [];
+  assert.equal(foodRecommendations(state, date).remaining.kcal, 2000);
+  assert.deepEqual(state.targets, targets);
+});
+
 test('counted supplements reduce remaining calories and protein', () => {
   const state = nearGoal();
   state.days[date].supps.shake1 = true;
