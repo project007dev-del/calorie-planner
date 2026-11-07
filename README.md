@@ -67,7 +67,9 @@ Automatic nutrition targets are limited to generally healthy adults and are with
 
 In **Settings → Daily targets → Advanced view: edit daily targets**, enter your own calorie target to preview matching protein, carbohydrate and fat amounts. **Fill these macros** fills the fields for review; **Save targets** applies them. Reference guides for fibre, produce, free sugars, saturated fat and sodium are expandable.
 
-In **Workout → Plan**, preview the 2-, 3-, 4- or 5-day examples, or create a new weekly routine. Change session types, duration, exercises and set/rep targets, then choose the date it applies from. The weekly overview and exercise muscle-focus illustrations work offline. Plan revisions are included in backups; recorded workouts retain their own session snapshots. Planned session counts and minutes feed nutrition estimates, while actual burn only counts completed activity.
+In **Workout → Plan**, preview the 2-, 3-, 4- or 5-day examples, or create a new weekly routine. Change session types, duration, exercises and set/rep targets, then choose the date it applies from. Already training? Use **Set program position** to choose your current week and workout day, without adding past sessions. Program days advance daily, including recovery days; Update position can realign the routine, and Use weekdays instead returns to a calendar schedule. The plan editor also supports a starting program position.
+
+Tap **View movement** in a session, the full workout list or the exercise library for an enlarged start/finish diagram and instructions. All 24 movements work offline, including both parts of the arms superset. Plan revisions and program position are included in backups; recorded workouts retain their own session snapshots. Planned session counts and minutes feed nutrition estimates, while actual burn only counts completed activity. Sand uses a charcoal/slate background, muted teal accents and warm beige controls.
 
 ## Android APK
 

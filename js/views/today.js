@@ -7,7 +7,7 @@ import {
 } from '../calc.js';
 import { ring, meter, toast, backupNow } from '../ui.js';
 import { foodRecommendations } from '../food-recommendations.js';
-import { workoutForDate } from '../workout-plans.js';
+import { workoutForDate, programPosition, scheduledWorkout } from '../workout-plans.js';
 import { openAddFood, portionRecommendations, wireFoodRecommendations } from './food.js';
 
 export function render(root, ctx) {
@@ -112,6 +112,8 @@ export function render(root, ctx) {
 
   // ----- Workout -----
   const plan = workoutForDate(state, date);
+  const position = programPosition(state, date);
+  const sessionLabel = position && plan.id === scheduledWorkout(state, date).id ? `Week ${position.week} · Day ${position.index + 1}` : plan.short;
   let wStatus;
   if (plan.type === 'strength') {
     const done = day?.workout?.planDayId === plan.id ? s.done : 0;
@@ -128,7 +130,8 @@ export function render(root, ctx) {
     <section class="card" aria-labelledby="h-work">
       <div class="card-head"><h2 id="h-work">Workout</h2><div class="row wrap"><a class="btn btn-sm" href="#/workout/today">Open</a>
         ${['strength', 'cardio'].includes(plan.type) ? `<button class="btn btn-sm btn-primary" type="button" data-workout-all ${plan.type === 'strength' ? s.done === plan.exercises.length ? 'disabled' : '' : c.done ? 'disabled' : ''}>All done</button>` : ''}</div></div>
-      <div class="row between"><div><div class="strong">${esc(plan.short)} · ${esc(plan.title)}</div><div class="muted small">${esc(plan.focus)}</div></div></div>
+      <div class="row between"><div><div class="strong">${esc(sessionLabel)} · ${esc(plan.title)}</div><div class="muted small">${esc(plan.focus)}</div></div></div>
+      <a class="small workout-position-link" href="#/workout/plan">${position ? 'Update program position' : 'Already started? Set your program position'}</a>
       <div style="margin-top:8px">${wStatus}</div>
     </section>`;
 

@@ -2,9 +2,10 @@
 import { esc, fmt, fmtUpTo, fmtDate, fmtLongDate, num, numOrNull, addDays, todayISO, weekStart, isValidISO, parseISO } from '../util.js';
 import { getDay } from '../store.js';
 import { JOG_STAGES, TRAINING_NOTES, allExercises } from '../plan.js';
-import { workoutForDate, loggedWorkoutPlan, sessionOptions, scheduledWeek, scheduledWorkout } from '../workout-plans.js';
+import { workoutForDate, loggedWorkoutPlan, sessionOptions, scheduledWeek, scheduledWorkout, programPosition, activeWorkoutPlan } from '../workout-plans.js';
 import { muscleVisual, muscleFocus, workoutIcon } from '../workout-visuals.js';
 import { renderWorkoutPlan } from './workout-plan.js';
+import { exercisePreview, wireExerciseGuides } from './exercise-guide.js';
 import {
   strengthStatus, cardioStatus, dayBurn, weightOn, lastExerciseLog, progressionHint, workoutSessions,
   weekSummary, weeklyStreak, exerciseHistory,
@@ -56,7 +57,14 @@ function renderToday(root, ctx) {
 
   const available = sessionOptions(state, date);
   const scheduledId = scheduledWorkout(state, date).id;
-  const options = available.map((d) => `<option value="${d.id}" ${d.id === plan.id ? 'selected' : ''}>${esc(d.short)} · ${esc(d.title)}${d.id === plan.id && d.id !== scheduledId ? ' (saved session)' : d.weekday === wd ? (date === todayISO() ? ' (today’s plan)' : ' (planned for this day)') : ''}</option>`).join('');
+  const position = programPosition(state, date);
+  const routine = activeWorkoutPlan(state, date);
+  const options = available.map((d) => {
+    const index = routine?.days.findIndex((x) => x.id === d.id);
+    const label = position && index >= 0 ? `Day ${index + 1}` : d.short;
+    const suffix = d.id === plan.id && d.id !== scheduledId ? ' (saved session)' : position ? d.id === scheduledId ? ' (current program day)' : '' : d.weekday === wd ? date === todayISO() ? ' (today’s plan)' : ' (planned for this day)' : '';
+    return `<option value="${d.id}" ${d.id === plan.id ? 'selected' : ''}>${esc(label)} · ${esc(d.title)}${suffix}</option>`;
+  }).join('');
 
   const exercises = plan.exercises.map((e, i) => {
     const log = exLogs[e.id] || {};
@@ -73,11 +81,11 @@ function renderToday(root, ctx) {
     return `<div class="ex ${log.done ? 'done' : ''}" data-ex="${e.id}">
       <div class="ex-head">
         <input type="checkbox" data-done ${log.done ? 'checked' : ''} aria-label="${esc(e.name)} done">
-        <span class="session-muscle">${muscleVisual(e.id, e.name)}</span>
         <div class="grow"><div class="ex-name">${i + 1}. ${esc(e.name)}</div>
           <div class="ex-target">${setsText(e)} · rest ${esc(e.rest)}</div></div>
         <a class="btn btn-sm" href="#/workout/exercise/${e.id}" aria-label="${esc(e.name)} history">History</a>
       </div>
+      ${exercisePreview(e)}
       ${last ? `<div class="row between wrap" style="margin-top:6px"><span class="small muted grow">Last time (${esc(fmtDate(last.date))}): ${last.sets.map((s) => setStr(s, e)).join(' · ')}</span><button type="button" class="btn btn-sm" data-samelast>Same as last time</button></div>` : ''}
       ${hint ? `<div class="hint ${hint.type === 'up' ? 'up' : ''}">${hint.type === 'up' ? '<span class="status good">Progress</span> ' : ''}${esc(hint.text)}</div>` : ''}
       <div class="sets" style="${e.noWeight ? 'grid-template-columns:52px 1fr' : ''}">
@@ -104,7 +112,7 @@ function renderToday(root, ctx) {
   root.innerHTML = `
     ${subtabs(TABS, 'today')}
     <section class="card session-hero">
-      <div class="card-head"><div class="row"><span class="day-type-icon ${plan.type}">${workoutIcon(plan.type)}</span><div><div class="eyebrow">YOUR SESSION</div><h2>${esc(plan.title)}</h2></div></div><a class="btn btn-sm" href="#/workout/plan">Update plan</a></div>
+      <div class="card-head"><div class="row"><span class="day-type-icon ${plan.type}">${workoutIcon(plan.type)}</span><div><div class="eyebrow">${position && plan.id === scheduledId ? `WEEK ${position.week} · DAY ${position.index + 1}` : 'YOUR SESSION'}</div><h2>${esc(plan.title)}</h2></div></div><a class="btn btn-sm" href="#/workout/plan">Update plan</a></div>
       <label class="field"><span>Workout</span><select class="input" data-plan>${options}</select></label>
       <p class="small muted" style="margin-top:10px">${esc(plan.focus)}</p>
       <p class="small" style="margin-top:8px" data-progress></p>
@@ -130,6 +138,7 @@ function renderToday(root, ctx) {
     }
   };
   refreshProgress();
+  wireExerciseGuides(root, plan.exercises);
 
   root.querySelector('[data-plan]').addEventListener('change', (e) => {
     const selected = available.find((d) => d.id === e.target.value);
@@ -344,6 +353,7 @@ function renderExercise(root, ctx, exId) {
     <a class="btn btn-sm" href="#/workout/history">‹ Workout history</a>
     <section class="card">
       <div class="card-head"><div class="row"><span class="exercise-detail-visual">${muscleVisual(ex.id, ex.name)}</span><div><h2>${esc(ex.name)}</h2><div class="sub">${esc(muscleFocus(ex.id))} · Exercise progress</div></div></div></div>
+      ${exercisePreview(ex)}
       ${planned.length ? `<details class="guidance"><summary>Targets in this week’s plan</summary>${planned.map((d) => `<p class="small">${esc(d.short)} · ${setsText(d.exercises.find((e) => e.id === exId))}</p>`).join('')}</details>` : ''}
       ${best ? `<div class="grid2">
           <div class="stat"><div class="label">Best set</div><div class="value num">${esc(setStr(best.best, ex))}</div></div>
@@ -360,6 +370,7 @@ function renderExercise(root, ctx, exId) {
     </section>`;
 
   const chartEl = root.querySelector('[data-chart]');
+  wireExerciseGuides(root, [ex]);
   if (chartEl) {
     timeChart(chartEl, {
       series: [{ id: 'best', label: usesKg ? 'heaviest set' : 'best set', kind: 'line', points, endLabel: true }],

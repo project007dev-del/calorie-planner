@@ -3,7 +3,7 @@
 import { applyNativeTheme, mirrorNativePreference } from './native.js';
 const KEY = 'planner.theme';
 const LIGHT_KEY = 'planner.lightTheme';
-const BAR_COLORS = { light: '#f3f4f1', dark: '#0d0d0d', sand: '#e6dfd3' }; // match --bg for the phone status bar
+const BAR_COLORS = { light: '#f3f4f1', dark: '#0d0d0d', sand: '#3c4245' }; // match --bg for the phone status bar
 export const THEME_OPTIONS = [['system', 'System'], ['light', 'Light'], ['dark', 'Dark'], ['sand', 'Sand']];
 const media = window.matchMedia('(prefers-color-scheme: dark)');
 

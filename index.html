@@ -10,7 +10,7 @@
       var m = 'system';
       try { var saved = localStorage.getItem('planner.theme'); if (['light', 'dark', 'sand'].indexOf(saved) >= 0) m = saved; } catch (e) {}
       var theme = m === 'system' ? (window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : m;
-      var colors = { light: '#f3f4f1', dark: '#0d0d0d', sand: '#e6dfd3' };
+      var colors = { light: '#f3f4f1', dark: '#0d0d0d', sand: '#3c4245' };
       document.documentElement.setAttribute('data-theme', theme);
       document.querySelector('meta[name="theme-color"]').setAttribute('content', colors[theme]);
     })();

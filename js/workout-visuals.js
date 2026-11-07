@@ -30,9 +30,9 @@ export function muscleVisual(id, name = '') {
   </svg>`;
 }
 
-export function weeklyVisual(days, { draft = false, currentWeekday = null } = {}) {
-  return `<div class="routine-week" aria-label="${draft ? 'Draft' : 'Saved'} weekly workout schedule">${days.map((d) => `<div class="routine-day ${d.type}${d.weekday === currentWeekday ? ' current' : ''}">
-    <span class="routine-weekday">${['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d.weekday]}</span>
+export function weeklyVisual(days, { draft = false, currentWeekday = null, program = false, currentIndex = null } = {}) {
+  return `<div class="routine-week" aria-label="${draft ? 'Draft' : 'Saved'} ${program ? 'program' : 'weekly workout'} schedule">${days.map((d, index) => `<div class="routine-day ${d.type}${(program ? index === currentIndex : d.weekday === currentWeekday) ? ' current' : ''}">
+    <span class="routine-weekday">${program ? `Day ${index + 1}` : ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d.weekday]}</span>
     <span class="routine-icon">${workoutIcon(d.type)}</span><b>${esc(d.title)}</b><span class="tiny">${d.type === 'rest' ? 'Recover' : `${d.minutes ?? (d.type === 'strength' ? 60 : 30)} min`}</span>
   </div>`).join('')}</div>`;
 }

@@ -41,7 +41,7 @@ export function mirrorNativePreference(key, value) {
 }
 
 export function applyNativeTheme(theme) {
-  systemBars?.setStyle({ style: theme === 'dark' ? 'DARK' : 'LIGHT' }).catch(() => {});
+  systemBars?.setStyle({ style: ['dark', 'sand'].includes(theme) ? 'DARK' : 'LIGHT' }).catch(() => {});
 }
 
 export async function initializeNative() {

@@ -1,6 +1,6 @@
 // Editable weekly routines. Logged sessions retain a snapshot of their plan.
 import { WORKOUT_DAYS, allExercises, planDayById, planDayForDate } from './plan.js';
-import { parseISO, isValidISO, addDays, weekStart, uid } from './util.js';
+import { parseISO, isValidISO, addDays, weekStart, uid, diffDays } from './util.js';
 
 export const WEEKDAYS = [[1, 'Monday'], [2, 'Tuesday'], [3, 'Wednesday'], [4, 'Thursday'], [5, 'Friday'], [6, 'Saturday'], [0, 'Sunday']];
 export const EXERCISES = allExercises();
@@ -34,7 +34,27 @@ export function activeWorkoutPlan(state, date) {
   return (state.workoutPlans || []).reduce((best, p) => p.effectiveFrom <= date && (!best || p.effectiveFrom >= best.effectiveFrom) ? p : best, null);
 }
 export function scheduledWorkout(state, date) {
-  return activeWorkoutPlan(state, date)?.days.find((d) => d.weekday === parseISO(date).getDay()) || planDayForDate(date);
+  const p = activeWorkoutPlan(state, date);
+  const position = programPosition(state, date);
+  return (position ? p.days[position.index] : p?.days.find((d) => d.weekday === parseISO(date).getDay())) || planDayForDate(date);
+}
+
+/** A position changes the schedule only. It never creates completion records. */
+export function programPosition(state, date) {
+  const p = activeWorkoutPlan(state, date);
+  if (!p?.position) return null;
+  const offset = p.position.index + diffDays(p.effectiveFrom, date);
+  return { week: p.position.week + Math.floor(offset / 7), index: offset % 7 };
+}
+
+export function continueWorkoutPlan(state, { date, week: weekNumber, index }, id) {
+  const p = activeWorkoutPlan(state, date);
+  return createWorkoutPlan({
+    name: p?.name || WORKOUT_TEMPLATES[3].name,
+    templateId: p?.templateId || 'original5',
+    effectiveFrom: date, days: p?.days || WORKOUT_TEMPLATES[3].days,
+    position: { week: Number(weekNumber), index: Number(index) },
+  }, id);
 }
 export function loggedWorkoutPlan(day) {
   return day?.workout?.planSnapshot || planDayById(day?.workout?.planDayId);
@@ -82,7 +102,13 @@ export function createWorkoutPlan(draft, id = `wp_${uid()}`) {
     }) : [];
     return { id: `${id}_${weekday}`, weekday, type: d.type, short: label.slice(0, 3), title, focus: d.type === 'strength' ? `${exercises.length} exercises · ${minutes} min` : d.type === 'cardio' ? 'Easy, conversational pace' : 'Recovery', minutes, exercises };
   });
-  return { id, name, effectiveFrom: draft.effectiveFrom, templateId: String(draft.templateId || 'custom'), days };
+  const result = { id, name, effectiveFrom: draft.effectiveFrom, templateId: String(draft.templateId || 'custom'), days };
+  if (draft.position != null) {
+    const weekNumber = Number(draft.position.week), index = Number(draft.position.index);
+    if (!Number.isInteger(weekNumber) || weekNumber < 1 || weekNumber > 9999 || !Number.isInteger(index) || index < 0 || index > 6) throw new Error('Choose a program week from 1 to 9,999 and a workout day from 1 to 7.');
+    result.position = { week: weekNumber, index };
+  }
+  return result;
 }
 
 export function normalizeWorkoutPlans(raw) {

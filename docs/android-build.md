@@ -52,6 +52,8 @@ Output: `android/app/build/outputs/apk/debug/app-debug.apk`. Generated `www/` an
 ## Device acceptance checks pending
 
 - Fresh install in airplane mode; all five screens and food data available.
+- Open movement guides, including both arms-superset diagrams, in airplane mode.
+- Set a current program week/day without past logs; restart and update the plan while retaining position.
 - Import a real backup and check food history, supplements, workouts, themes and body entries.
 - Restart, background and update without losing logs.
 - Test Back with stacked sheets, tabs, root exit and predictive-back gestures.

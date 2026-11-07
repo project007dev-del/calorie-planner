@@ -23,7 +23,7 @@ const TYPES = {
 };
 
 // Only these top-level paths are served (keeps tools/, tests/, node files private).
-const PUBLIC = ['index.html', 'manifest.webmanifest', 'sw.js', 'css', 'js', 'icons'];
+const PUBLIC = ['index.html', 'manifest.webmanifest', 'sw.js', 'css', 'js', 'icons', 'assets'];
 
 createServer(async (req, res) => {
   try {
