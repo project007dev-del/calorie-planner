@@ -9,6 +9,7 @@
 import { DEFAULT_PROFILE, DEFAULT_TARGETS, DEFAULT_BURN, DEFAULT_SUPPLEMENTS, MEALS } from './plan.js';
 import { isValidISO } from './util.js';
 import { mirrorNativePreference } from './native.js';
+import { normalizeWorkoutPlans, normalizeWorkoutSnapshot } from './workout-plans.js';
 
 const MEAL_IDS = MEALS.map((m) => m.id);
 const LAST_BACKUP_KEY = 'planner.lastBackup';
@@ -25,6 +26,7 @@ export function defaultState() {
     burn: { ...DEFAULT_BURN },
     supplements: DEFAULT_SUPPLEMENTS.map((s) => ({ ...s })),
     customFoods: [],
+    workoutPlans: [],
     days: {},
   };
 }
@@ -41,6 +43,7 @@ export function normalize(raw) {
     burn: { ...base.burn, ...(raw.burn || {}) },
     supplements: Array.isArray(raw.supplements) ? raw.supplements : base.supplements,
     customFoods: Array.isArray(raw.customFoods) ? raw.customFoods : [],
+    workoutPlans: normalizeWorkoutPlans(raw.workoutPlans),
     days: raw.days && typeof raw.days === 'object' ? raw.days : {},
   };
   for (const key of Object.keys(s.days)) {
@@ -53,6 +56,11 @@ export function normalize(raw) {
     d.food = d.food.filter((e) => e && typeof e === 'object');
     for (const e of d.food) if (!MEAL_IDS.includes(e.meal)) e.meal = 'snack'; // never hide food under an unknown meal
     if (!d.supps || typeof d.supps !== 'object') d.supps = {};
+    if (d.workout?.planSnapshot) {
+      const snapshot = normalizeWorkoutSnapshot(d.workout.planSnapshot, d.workout.planDayId);
+      if (snapshot) d.workout.planSnapshot = snapshot;
+      else delete d.workout.planSnapshot;
+    }
   }
   // Supplements: older versions had `daily: true/false` instead of a schedule.
   s.supplements = s.supplements

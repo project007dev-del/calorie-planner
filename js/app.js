@@ -25,12 +25,13 @@ const ctx = {
   ui: { date: todayISO() },
   installPrompt: null, // set by "beforeinstallprompt" (Chrome / Android)
   save() {
-    if (!saveState(ctx.state)) { toast('Could not save – storage may be full'); return; }
+    if (!saveState(ctx.state)) { toast('Could not save – storage may be full'); return false; }
     // Ask the browser not to clear the planner's storage when space runs low.
     if (!ctx.native && !askedPersist && navigator.storage?.persist) {
       askedPersist = true;
       navigator.storage.persisted().then((p) => p || navigator.storage.persist()).catch(() => {});
     }
+    return true;
   },
   go(hash) {
     // If a sheet just closed, let its Back step finish first or it would undo this navigation.
@@ -55,7 +56,7 @@ function parseHash() {
 function usesDate(name, params) {
   if (name === 'today') return true;
   if (name === 'food') return !params[0] || params[0] === 'log';
-  if (name === 'workout') return !params[0] || params[0] === 'today';
+  if (name === 'workout') return !params[0] || ['today', 'plan'].includes(params[0]);
   return false;
 }
 

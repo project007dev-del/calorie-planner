@@ -3,7 +3,8 @@ import { esc, fmt, fmtDate, fmtLongDate, num, numOrNull, uid, todayISO, isValidI
 import { importJSON, defaultState, getLastBackup } from '../store.js';
 import { APP_VERSION, DEFAULT_BURN, profileComplete } from '../plan.js';
 import { bmrMifflin, currentWeight, suggestBaseKcal, suppSchedule, scheduleLabel, nextDue } from '../calc.js';
-import { ACTIVITY_LEVELS, DIET_STYLES, BULK_INTENSITIES, dailyRecommendation } from '../recommendations.js';
+import { ACTIVITY_LEVELS, DIET_STYLES, BULK_INTENSITIES, dailyRecommendation, intakeForCalories } from '../recommendations.js';
+import { workoutPlanSummary } from '../workout-plans.js';
 import { parseSettings } from '../settings-model.js';
 import { openSheet, confirmSheet, toast, formValues, backupNow } from '../ui.js';
 import { THEME_OPTIONS, getThemeMode, setThemeMode } from '../theme.js';
@@ -11,6 +12,25 @@ import { THEME_OPTIONS, getThemeMode, setThemeMode } from '../theme.js';
 const field = (name, label, value, attrs = 'inputmode="decimal"') =>
   `<label class="field"><span>${label}</span><input class="input num" name="${name}" value="${esc(value ?? '')}" ${attrs}></label>`;
 const select = (name, label, value, options) => `<label class="field"><span>${label}</span><select class="input" name="${name}">${options.map(([id, text]) => `<option value="${id}" ${value === id ? 'selected' : ''}>${text}</option>`).join('')}</select></label>`;
+
+function enteredIntakeCard(rec) {
+  if (!rec.available) return `<div class="intake-suggestion"><h3>Match intake to your calories</h3><p class="small muted">${esc(rec.reason)}</p></div>`;
+  const t = rec.targets;
+  const parts = [['protein', 'Protein', 4], ['carbs', 'Carbs', 4], ['fat', 'Fat', 9]];
+  return `<div class="intake-suggestion">
+    <div class="eyebrow">YOUR CALORIE TARGET</div><h3>Intake for ${fmt(t.kcal)} kcal</h3>
+    <p class="small muted">${esc(rec.style.label)} · based on your saved profile. Updates as you type.</p>
+    <div class="macro-segments" role="img" aria-label="Suggested calorie split: ${parts.map(([id, label, factor]) => `${label} ${Math.round(t[id] * factor / t.kcal * 100)}%`).join(', ')}">${parts.map(([id, , factor]) => `<span class="segment-${id}" style="flex:${t[id] * factor}"></span>`).join('')}</div>
+    <div class="macro-tiles">${parts.map(([id, label, factor]) => `<div class="macro-tile ${id}"><span>${label}</span><b class="num">${fmt(t[id])}<small> g</small></b><span class="tiny">${Math.round(t[id] * factor / t.kcal * 100)}% of calories</span></div>`).join('')}</div>
+    <button class="btn btn-sm btn-primary" type="button" data-fill-calorie-macros>Fill these macros</button>
+    <p class="tiny muted">Protein uses ${rec.proteinPerKg} g/kg${rec.proteinCapped ? ', capped at 30% of calories' : ''}; fat uses about 30%; carbs fill the remaining calories. Review, then Save targets.</p>
+    <details class="guidance"><summary>Other daily intake guides</summary>
+      <dl class="kv small"><dt>Fibre</dt><dd>At least 25 g</dd><dt>Fruit &amp; vegetables</dt><dd>At least 400 g</dd><dt>Free sugars</dt><dd>Less than ${fmt(rec.guides.freeSugars, 1)} g</dd><dt>Saturated fat</dt><dd>Less than ${fmt(rec.guides.saturatedFat, 1)} g</dd><dt>Sodium</dt><dd>Less than 2,000 mg</dd></dl>
+      <p class="tiny muted">Sugars and saturated-fat limits each use 10% of your entered calories. Fibre, produce and sodium use general adult guidance. These are reference amounts; the food log tracks calories, protein, carbs and fat.</p>
+      <a class="tiny" href="https://www.who.int/news-room/fact-sheets/detail/healthy-diet" target="_blank" rel="noopener noreferrer">WHO healthy diet guidance</a>
+    </details>
+  </div>`;
+}
 
 function recommendationCard(rec) {
   if (!rec.available) return `<div class="recommendation"><h3>Your recommendation</h3><p class="small">${esc(rec.reason)}</p></div>`;
@@ -61,9 +81,11 @@ export function render(root, ctx, params = []) {
   const suggested = canEstimate ? suggestBaseKcal(p, weight) : null;
   const activity = ACTIVITY_LEVELS.find((a) => a.id === p.activityLevel) || ACTIVITY_LEVELS[1];
   const rec = dailyRecommendation(state, todayISO());
+  const planned = workoutPlanSummary(state, todayISO());
   const strengthExtra = Math.max(0, num(b.strengthMet) - 1) * weight * num(b.strengthMinutes) / 60;
-  const cardioExtra = Math.max(0, num(b.jogMet) - 1) * weight * num(p.cardioMinutes) / 60;
-  const weeklyBurn = num(b.baseKcal) + (num(p.strengthDays) * strengthExtra + cardioExtra) / 7;
+  const cardioExtra = Math.max(0, num(b.jogMet) - 1) * weight * (planned?.cardioMinutes ?? num(p.cardioMinutes)) / 60;
+  const weeklyStrength = planned ? Math.max(0, num(b.strengthMet) - 1) * weight * planned.strengthMinutes / 60 : num(p.strengthDays) * strengthExtra;
+  const weeklyBurn = num(b.baseKcal) + (weeklyStrength + cardioExtra) / 7;
   const macroSum = num(t.protein) * 4 + num(t.carbs) * 4 + num(t.fat) * 9;
 
   const mode = getThemeMode();
@@ -107,8 +129,7 @@ export function render(root, ctx, params = []) {
         <div class="grid2">${field('startWaistCm', 'Starting waist (cm)', p.startWaistCm)}${field('waistGoalCm', 'Waist goal (cm)', p.waistGoalCm)}</div>
         <p class="muted tiny">${num(p.heightCm) > 0 ? `Waist under half your height (${fmt(num(p.heightCm) / 2, 1)} cm) is a useful long-term health marker. ` : ''}Waist fields are optional.</p>
         ${select('dietStyle', 'Preferred diet style', p.dietStyle, DIET_STYLES.map((d) => [d.id, d.label]))}
-        <div class="grid2">${field('strengthDays', 'Planned lifting days / week', p.strengthDays, 'type="number" min="0" max="7" step="1" inputmode="numeric"')}${field('cardioMinutes', 'Planned jog minutes / week', p.cardioMinutes, 'type="number" min="0" max="1260" inputmode="numeric"')}</div>
-        <p class="muted tiny">Planned sessions help estimate maintenance; they do not change the workout split or count as completed workouts.</p>
+        ${planned ? `<input type="hidden" name="strengthDays" value="${p.strengthDays}"><input type="hidden" name="cardioMinutes" value="${p.cardioMinutes}"><p class="small">Your workout plan supplies <b>${planned.strengthDays} lifting days</b> and <b>${planned.cardioMinutes} cardio minutes</b> per week. <a href="#/workout/plan">Update workout plan</a></p>` : `<div class="grid2">${field('strengthDays', 'Planned lifting days / week', p.strengthDays, 'type="number" min="0" max="7" step="1" inputmode="numeric"')}${field('cardioMinutes', 'Planned jog minutes / week', p.cardioMinutes, 'type="number" min="0" max="1260" inputmode="numeric"')}</div><p class="muted tiny">Planned sessions help estimate maintenance. <a href="#/workout/plan">Choose a workout plan</a> to set your weekly schedule.</p>`}
       </div></details>
       <button class="btn btn-primary" style="margin-top:8px" data-save="profile">Save profile</button>
     </section>
@@ -125,6 +146,7 @@ export function render(root, ctx, params = []) {
         ${field('fat', 'Fat (g)', t.fat)}
       </div>
       <p class="muted tiny" style="margin-top:6px" data-macro-total>Macros add up to ${fmt(macroSum)} kcal.</p>
+      <div data-calorie-intake aria-live="polite">${enteredIntakeCard(intakeForCalories(state, todayISO(), t.kcal))}</div>
       <p class="small" data-target-feedback aria-live="polite"></p>
       <button class="btn btn-primary" style="margin-top:8px" data-save="targets">Save targets</button>
       </details>
@@ -245,8 +267,20 @@ export function render(root, ctx, params = []) {
     const v = formValues(targetForm);
     const total = num(v.protein) * 4 + num(v.carbs) * 4 + num(v.fat) * 9;
     targetForm.querySelector('[data-macro-total]').textContent = `Macros add up to ${fmt(total)} kcal.${Math.abs(total - num(v.kcal)) > 50 ? ' Check the calories or macro amounts: they differ by more than 50 kcal.' : ''}`;
+    targetForm.querySelector('[data-calorie-intake]').innerHTML = enteredIntakeCard(intakeForCalories(state, todayISO(), v.kcal));
   };
+  targetForm.querySelector('[data-calorie-intake]').addEventListener('click', (event) => {
+    if (!event.target.closest('[data-fill-calorie-macros]')) return;
+    const suggestion = intakeForCalories(state, todayISO(), targetForm.querySelector('[name=kcal]').value);
+    if (!suggestion.available) return;
+    for (const key of ['protein', 'carbs', 'fat']) targetForm.querySelector(`[name=${key}]`).value = suggestion.targets[key];
+    updateMacroTotal();
+    targetForm.querySelector('[data-target-feedback]').textContent = 'Macros filled for your calorie target. Save targets to apply.';
+  });
   targetForm.querySelectorAll('input').forEach((input) => input.addEventListener('input', updateMacroTotal));
+  targetForm.querySelector('[name=kcal]').addEventListener('input', () => {
+    targetForm.querySelector('[data-target-feedback]').textContent = 'Calories changed. Fill the matching macros or enter your own before saving.';
+  });
   root.querySelector('[data-fill-targets]')?.addEventListener('click', () => {
     targetForm.querySelector('[data-target-editor]').open = true;
     for (const [key, value] of Object.entries(rec.targets)) targetForm.querySelector(`[name=${key}]`).value = value;
@@ -259,8 +293,9 @@ export function render(root, ctx, params = []) {
     try {
       const next = parseSettings('burn', formValues(burnForm));
       const extra = Math.max(0, next.strengthMet - 1) * weight * next.strengthMinutes / 60;
-      const cardio = Math.max(0, next.jogMet - 1) * weight * num(p.cardioMinutes) / 60;
-      const avg = next.baseKcal + (num(p.strengthDays) * extra + cardio) / 7;
+      const cardio = Math.max(0, next.jogMet - 1) * weight * (planned?.cardioMinutes ?? num(p.cardioMinutes)) / 60;
+      const strength = planned ? Math.max(0, next.strengthMet - 1) * weight * planned.strengthMinutes / 60 : num(p.strengthDays) * extra;
+      const avg = next.baseKcal + (strength + cardio) / 7;
       burnForm.querySelector('[data-burn-preview]').textContent = `Preview: rest day ${fmt(next.baseKcal)} kcal · full lifting session +${fmt(extra)} kcal · planned weekly average ${fmt(avg)} kcal/day. Save burn settings to apply.`;
     } catch (err) { burnForm.querySelector('[data-burn-preview]').textContent = err.message; }
   }

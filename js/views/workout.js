@@ -1,7 +1,10 @@
 // Workout screen: today's session (checkboxes + kg × reps) and history.
 import { esc, fmt, fmtUpTo, fmtDate, fmtLongDate, num, numOrNull, addDays, todayISO, weekStart, isValidISO, parseISO } from '../util.js';
 import { getDay } from '../store.js';
-import { WORKOUT_DAYS, JOG_STAGES, TRAINING_NOTES, planDayById, planDayForDate, allExercises } from '../plan.js';
+import { JOG_STAGES, TRAINING_NOTES, allExercises } from '../plan.js';
+import { workoutForDate, loggedWorkoutPlan, sessionOptions, scheduledWeek, scheduledWorkout } from '../workout-plans.js';
+import { muscleVisual, muscleFocus, workoutIcon } from '../workout-visuals.js';
+import { renderWorkoutPlan } from './workout-plan.js';
 import {
   strengthStatus, cardioStatus, dayBurn, weightOn, lastExerciseLog, progressionHint, workoutSessions,
   weekSummary, weeklyStreak, exerciseHistory,
@@ -11,6 +14,7 @@ import { timeChart } from '../chart.js';
 
 const TABS = [
   ['today', 'Session', '#/workout/today'],
+  ['plan', 'Plan', '#/workout/plan'],
   ['history', 'History', '#/workout/history'],
 ];
 const WEEKDAY = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -20,15 +24,18 @@ export function render(root, ctx, params) {
   if (tab === 'history' && params[1] && isValidISO(params[1])) return renderSession(root, ctx, params[1]);
   if (tab === 'history') return renderHistory(root, ctx);
   if (tab === 'exercise' && params[1]) return renderExercise(root, ctx, params[1]);
+  if (tab === 'plan') return renderWorkoutPlan(root, ctx, TABS);
   return renderToday(root, ctx);
 }
 
 const setsText = (e) => `${e.setsMin === e.setsMax ? e.setsMin : `${e.setsMin}–${e.setsMax}`} × ${e.repsMin}–${e.repsMax}${e.unit === 's' ? ' s' : ''}${e.perSide ? ` / ${e.perSide}` : ''}`;
 const setStr = (s, ex) => (ex?.noWeight || !num(s.kg) ? `${fmt(s.reps)}${ex?.unit === 's' ? ' s' : ' reps'}` : `${fmtUpTo(s.kg, 2)} kg × ${fmt(s.reps)}`);
 
-function ensureWorkout(state, date, planId) {
+function ensureWorkout(state, date, plan) {
   const d = getDay(state, date, true);
-  if (!d.workout) d.workout = { planDayId: planId, exercises: {}, cardio: { done: false, minutes: 30 }, notes: '' };
+  if (!d.workout) d.workout = { planDayId: plan.id, exercises: {}, cardio: { done: false, minutes: plan.type === 'cardio' ? plan.minutes ?? 30 : 30 }, notes: '' };
+  if (!d.workout.planSnapshot || d.workout.planDayId !== plan.id) d.workout.planSnapshot = structuredClone(plan);
+  d.workout.planDayId = plan.id;
   if (!d.workout.exercises) d.workout.exercises = {};
   if (!d.workout.cardio) d.workout.cardio = { done: false, minutes: 30 };
   return d.workout;
@@ -41,13 +48,15 @@ function renderToday(root, ctx) {
   const { state } = ctx;
   const date = ctx.ui.date;
   const day = getDay(state, date);
-  const plan = planDayById(day?.workout?.planDayId) || planDayForDate(date);
+  const plan = workoutForDate(state, date);
   const w = day?.workout?.planDayId === plan.id ? day.workout : null;
   const exLogs = w?.exercises || {};
-  const cardio = day?.workout?.cardio || { done: false, minutes: 30 };
+  const cardio = day?.workout?.cardio || { done: false, minutes: plan.type === 'cardio' ? plan.minutes ?? 30 : 30 };
   const wd = parseISO(date).getDay();
 
-  const options = WORKOUT_DAYS.map((d) => `<option value="${d.id}" ${d.id === plan.id ? 'selected' : ''}>${esc(d.short)} · ${esc(d.title)}${d.weekday === wd ? (date === todayISO() ? ' (today’s plan)' : ' (planned for this day)') : ''}</option>`).join('');
+  const available = sessionOptions(state, date);
+  const scheduledId = scheduledWorkout(state, date).id;
+  const options = available.map((d) => `<option value="${d.id}" ${d.id === plan.id ? 'selected' : ''}>${esc(d.short)} · ${esc(d.title)}${d.id === plan.id && d.id !== scheduledId ? ' (saved session)' : d.weekday === wd ? (date === todayISO() ? ' (today’s plan)' : ' (planned for this day)') : ''}</option>`).join('');
 
   const exercises = plan.exercises.map((e, i) => {
     const log = exLogs[e.id] || {};
@@ -64,6 +73,7 @@ function renderToday(root, ctx) {
     return `<div class="ex ${log.done ? 'done' : ''}" data-ex="${e.id}">
       <div class="ex-head">
         <input type="checkbox" data-done ${log.done ? 'checked' : ''} aria-label="${esc(e.name)} done">
+        <span class="session-muscle">${muscleVisual(e.id, e.name)}</span>
         <div class="grow"><div class="ex-name">${i + 1}. ${esc(e.name)}</div>
           <div class="ex-target">${setsText(e)} · rest ${esc(e.rest)}</div></div>
         <a class="btn btn-sm" href="#/workout/exercise/${e.id}" aria-label="${esc(e.name)} history">History</a>
@@ -93,9 +103,10 @@ function renderToday(root, ctx) {
 
   root.innerHTML = `
     ${subtabs(TABS, 'today')}
-    <section class="card">
+    <section class="card session-hero">
+      <div class="card-head"><div class="row"><span class="day-type-icon ${plan.type}">${workoutIcon(plan.type)}</span><div><div class="eyebrow">YOUR SESSION</div><h2>${esc(plan.title)}</h2></div></div><a class="btn btn-sm" href="#/workout/plan">Update plan</a></div>
       <label class="field"><span>Workout</span><select class="input" data-plan>${options}</select></label>
-      <div style="margin-top:10px"><div class="strong">${esc(plan.title)}</div><div class="muted small">${esc(plan.focus)}</div></div>
+      <p class="small muted" style="margin-top:10px">${esc(plan.focus)}</p>
       <p class="small" style="margin-top:8px" data-progress></p>
       ${plan.type === 'strength' ? `<details class="tip"><summary>Warm-up &amp; effort</summary><p>${esc(TRAINING_NOTES.warmup)}</p><p>${esc(TRAINING_NOTES.effort)}</p></details>` : ''}
     </section>
@@ -121,8 +132,9 @@ function renderToday(root, ctx) {
   refreshProgress();
 
   root.querySelector('[data-plan]').addEventListener('change', (e) => {
-    const wk = ensureWorkout(state, date, e.target.value);
-    wk.planDayId = e.target.value;
+    const selected = available.find((d) => d.id === e.target.value);
+    if (!selected) return;
+    ensureWorkout(state, date, selected);
     ctx.save();
     ctx.render();
   });
@@ -131,7 +143,7 @@ function renderToday(root, ctx) {
     const exId = card.dataset.ex;
     const ex = plan.exercises.find((x) => x.id === exId);
     const getLog = () => {
-      const wk = ensureWorkout(state, date, plan.id);
+      const wk = ensureWorkout(state, date, plan);
       wk.planDayId = plan.id;
       return (wk.exercises[exId] ||= { done: false, sets: [] });
     };
@@ -187,7 +199,7 @@ function renderToday(root, ctx) {
   const cDone = root.querySelector('[data-cardio-done]');
   const cMin = root.querySelector('[data-cardio-min]');
   const saveCardio = () => {
-    const wk = ensureWorkout(state, date, plan.id);
+    const wk = ensureWorkout(state, date, plan);
     const m = numOrNull(cMin.value);
     wk.cardio = { done: cDone.checked, minutes: m === null ? 30 : Math.max(0, Math.min(300, m)) };
     cMin.value = wk.cardio.minutes;
@@ -199,7 +211,7 @@ function renderToday(root, ctx) {
 
   const notes = root.querySelector('[data-notes]');
   notes.addEventListener('change', () => {
-    const wk = ensureWorkout(state, date, plan.id);
+    const wk = ensureWorkout(state, date, plan);
     wk.notes = notes.value.trim();
     ctx.save();
     toast('Notes saved');
@@ -213,7 +225,10 @@ function renderHistory(root, ctx) {
   const { state } = ctx;
   const today = todayISO();
   const week = weekSummary(state, today);
-  const wStreak = weeklyStreak(state, today, 5);
+  const wStreak = weeklyStreak(state, today);
+  const schedule = scheduledWeek(state, today);
+  const strengthGoal = schedule.filter((d) => d.type === 'strength').length;
+  const cardioGoal = schedule.filter((d) => d.type === 'cardio').length;
   const sessions = workoutSessions(state);
 
   const weekStrip = week.days.map((d) => `
@@ -257,9 +272,9 @@ function renderHistory(root, ctx) {
     <section class="card">
       <div class="card-head"><div><h2>This week</h2><div class="sub">${esc(fmtDate(week.start))} – ${esc(fmtDate(addDays(week.start, 6)))}</div></div></div>
       <div class="grid3">
-        <div class="stat"><div class="label">Strength days</div><div class="value num">${week.strength}<small> / 5</small></div></div>
-        <div class="stat"><div class="label">Jogs</div><div class="value num">${week.cardio}<small> / 1–2</small></div></div>
-        <div class="stat"><div class="label">Weeks hitting 5/5</div><div class="value num">${wStreak}<small> in a row</small></div></div>
+        <div class="stat"><div class="label">Strength days</div><div class="value num">${week.strength}<small> / ${strengthGoal}</small></div></div>
+        <div class="stat"><div class="label">Cardio days</div><div class="value num">${week.cardio}<small> / ${cardioGoal}</small></div></div>
+        <div class="stat"><div class="label">Weekly goal streak</div><div class="value num">${wStreak}<small> weeks</small></div></div>
       </div>
       <div class="week" style="margin-top:10px">${weekStrip}</div>
       <div class="legend"><span><i class="mk-work"></i>Lifting</span><span><i class="mk-food"></i>Jog / walk</span></div>
@@ -287,7 +302,7 @@ function renderSession(root, ctx, date) {
   const s = strengthStatus(day);
   const c = cardioStatus(day);
   const burn = dayBurn(day, state.burn, weightOn(state, date));
-  const plan = s.plan;
+  const plan = loggedWorkoutPlan(day);
 
   const exList = plan?.type === 'strength' ? plan.exercises.map((e) => {
     const log = day.workout.exercises?.[e.id];
@@ -322,13 +337,14 @@ function renderExercise(root, ctx, exId) {
   const withSets = rows.filter((r) => r.sets.length);
   const usesKg = !ex.noWeight && withSets.some((r) => r.topKg > 0);
   const points = withSets.map((r) => ({ date: r.date, y: usesKg ? r.topKg : r.best.reps })).reverse();
-  const days = ex.dayIds.map((id) => planDayById(id)).map((d) => `${d.short} (${d.title})`).join(', ');
+  const planned = scheduledWeek(state, ctx.ui.date).filter((d) => d.exercises.some((e) => e.id === exId));
   const best = withSets.reduce((b, r) => (!b || (usesKg ? r.topKg > b.topKg : r.best.reps > b.best.reps) ? r : b), null);
 
   root.innerHTML = `
     <a class="btn btn-sm" href="#/workout/history">‹ Workout history</a>
     <section class="card">
-      <div class="card-head"><div><h2>${esc(ex.name)}</h2><div class="sub">${setsText(ex)} · ${esc(days)}</div></div></div>
+      <div class="card-head"><div class="row"><span class="exercise-detail-visual">${muscleVisual(ex.id, ex.name)}</span><div><h2>${esc(ex.name)}</h2><div class="sub">${esc(muscleFocus(ex.id))} · Exercise progress</div></div></div></div>
+      ${planned.length ? `<details class="guidance"><summary>Targets in this week’s plan</summary>${planned.map((d) => `<p class="small">${esc(d.short)} · ${setsText(d.exercises.find((e) => e.id === exId))}</p>`).join('')}</details>` : ''}
       ${best ? `<div class="grid2">
           <div class="stat"><div class="label">Best set</div><div class="value num">${esc(setStr(best.best, ex))}</div></div>
           <div class="stat"><div class="label">Sessions</div><div class="value num">${rows.length}</div></div>

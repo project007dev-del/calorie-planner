@@ -1,5 +1,6 @@
 // All the maths, as pure functions (unit-tested in tests/calc.test.mjs).
-import { planDayById, EXAMPLE_DAY } from './plan.js';
+import { EXAMPLE_DAY } from './plan.js';
+import { loggedWorkoutPlan, scheduledWeek } from './workout-plans.js';
 import { findFood } from './foods.js';
 import { addDays, diffDays, weekStart, num, fmt, parseISO } from './util.js';
 
@@ -63,7 +64,7 @@ export function buildExampleEntries(state, makeId) {
 
 export function strengthStatus(day) {
   const w = day?.workout;
-  const plan = planDayById(w?.planDayId);
+  const plan = loggedWorkoutPlan(day);
   if (!plan || plan.type !== 'strength') return { plan, done: 0, total: 0, frac: 0, sets: 0 };
   const total = plan.exercises.length;
   const done = plan.exercises.filter((e) => w.exercises?.[e.id]?.done).length;
@@ -81,8 +82,9 @@ export function completeWorkout(workout, plan) {
   if (!plan || !['strength', 'cardio'].includes(plan.type)) return null;
   const next = structuredClone(workout || {});
   next.planDayId = plan.id;
+  next.planSnapshot = structuredClone(plan);
   next.exercises ||= {};
-  next.cardio ||= { done: false, minutes: 30 };
+  next.cardio ||= { done: false, minutes: plan.type === 'cardio' ? plan.minutes ?? 30 : 30 };
   next.notes ??= '';
   if (plan.type === 'strength') {
     for (const exercise of plan.exercises) {
@@ -110,7 +112,8 @@ export function dayBurn(day, burn, weightKg) {
   const s = strengthStatus(day);
   const c = cardioStatus(day);
   const base = num(burn.baseKcal);
-  const strength = Math.max(0, num(burn.strengthMet) - 1) * weightKg * (num(burn.strengthMinutes) / 60) * s.frac;
+  const minutes = day?.workout?.planSnapshot?.minutes ?? burn.strengthMinutes;
+  const strength = Math.max(0, num(burn.strengthMet) - 1) * weightKg * (num(minutes) / 60) * s.frac;
   const cardio = c.done ? Math.max(0, num(burn.jogMet) - 1) * weightKg * (c.minutes / 60) : 0;
   return { base, strength, cardio, total: base + strength + cardio };
 }
@@ -453,9 +456,12 @@ export function weekSummary(state, anyDateInWeek) {
 }
 
 /** Consecutive weeks with at least `target` strength sessions. */
-export function weeklyStreak(state, today, target = 5) {
+export function weeklyStreak(state, today, target = null) {
   let ws = weekStart(today);
-  const met = (w) => weekSummary(state, w).strength >= target;
+  const met = (w) => {
+    const goal = target ?? scheduledWeek(state, w).filter((d) => d.type === 'strength').length;
+    return goal > 0 && weekSummary(state, w).strength >= goal;
+  };
   if (!met(ws)) ws = addDays(ws, -7);
   let n = 0;
   while (n < 520 && met(ws)) {

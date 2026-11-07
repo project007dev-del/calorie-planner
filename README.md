@@ -63,6 +63,12 @@ These are estimates. Water, salt and creatine move the scale, so go by the weekl
 
 Automatic nutrition targets are limited to generally healthy adults and are withheld for under-18s, pregnancy/breastfeeding or diet-related conditions, BMI below 18.5 or at least 40, or a goal below BMI 18.5. Manual tracking remains available.
 
+## Daily intake and workout plans
+
+In **Settings → Daily targets → Advanced view: edit daily targets**, enter your own calorie target to preview matching protein, carbohydrate and fat amounts. **Fill these macros** fills the fields for review; **Save targets** applies them. Reference guides for fibre, produce, free sugars, saturated fat and sodium are expandable.
+
+In **Workout → Plan**, preview the 2-, 3-, 4- or 5-day examples, or create a new weekly routine. Change session types, duration, exercises and set/rep targets, then choose the date it applies from. The weekly overview and exercise muscle-focus illustrations work offline. Plan revisions are included in backups; recorded workouts retain their own session snapshots. Planned session counts and minutes feed nutrition estimates, while actual burn only counts completed activity.
+
 ## Android APK
 
 The `android/` project packages the planner with Capacitor 8, bundled offline assets, native Preferences storage, Android Back handling and backup sharing. **Actions → Android APK** builds a test APK and uploads the **calorie-planner-android-debug** artifact. Import a web backup to move existing logs. Device testing and production signing are still required. See the [Android build and testing guide](docs/android-build.md).

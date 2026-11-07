@@ -11,6 +11,7 @@ Reviewed online on 7 November 2026. Recommendation text and food data are bundle
 - [Mifflin et al., 1990](https://pubmed.ncbi.nlm.nih.gov/2305711/): the resting-energy equation used by the original app.
 - [Helms et al., 2023: small and large energy surpluses in trained lifters](https://link.springer.com/article/10.1186/s40798-023-00651-y): this small eight-week study compared maintenance, 5% and 15% surpluses; faster weight gain primarily increased fat gain. It does not establish an optimal surplus for every person. The app’s light/heavy choices and calorie caps are product defaults, not the study’s prescriptions.
 - [2024 Compendium: conditioning exercise](https://pacompendium.com/conditioning-exercise/) and [running](https://pacompendium.com/running/): lifting and jogging MET presets. These represent activities, not a personalized measurement of calorie expenditure.
+- [ACSM 2026 resistance-training guidance](https://acsm.org/resistance-training-guidelines-update-2026/): train the major muscle groups at least twice weekly and tailor training to consistency and recovery. The app's 2-, 3-, 4- and 5-day routines are editable planner examples, not ACSM-prescribed programs. Muscle illustrations indicate broad focus areas rather than demonstrating exercise form.
 
 No source establishes one universally best diet. The app offers locally practical patterns and makes its calculation choices visible.
 
@@ -26,6 +27,14 @@ No source establishes one universally best diet. The app offers locally practica
 8. Withhold automatic targets for incomplete/invalid profiles, age below 18, the special nutrition context, current BMI below 18.5 or at least 40, a goal below BMI 18.5, or estimated maintenance above 6,000 kcal/day. The upper energy threshold prompts review of unusually high burn settings. BMI is only a screening guardrail, not a diagnosis. Dietitian-set targets can still be entered manually.
 
 Save profile and burn changes before filling a recommendation. Filling a suggestion does not save it; the user reviews it and presses Save targets. Changing diet preferences does not replace food logs or supplement choices.
+
+## Entered calorie targets and workout plans
+
+The advanced daily-target editor recomputes macro suggestions from the typed calories using the same protein-per-kg, 30%-fat and remaining-carbohydrate assumptions. It does not replace the entered calories with the profile's suggested calorie target. It uses the existing adult eligibility checks and an automatic-guidance range of 1,200–6,000 kcal for female profiles or 1,500–6,000 kcal for male profiles. Manually entered targets remain supported.
+
+Expandable WHO reference amounts are at least 25 g naturally occurring fibre, at least 400 g fruit/vegetables and less than 2,000 mg sodium daily. Free sugars and saturated-fat limits each use less than 10% of the entered energy, divided by 4 or 9 kcal/g respectively. These reference nutrients are not measured by the current four-value food log. General guidance does not determine individual needs for conditions requiring a prescribed diet.
+
+Saved workout routines supply planned lifting/cardio counts and session minutes to nutrition estimates from their effective date. Earlier dates use the relevant earlier revision. Daily completed burn uses a recorded session's duration and snapshot; planned exercise alone does not add completed burn. Backups include routine revisions and snapshots so changing a plan cannot rewrite logged exercise lists or targets.
 
 ## Food portion suggestions
 

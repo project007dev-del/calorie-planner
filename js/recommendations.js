@@ -4,6 +4,7 @@ import { bmrMifflin, suggestBaseKcal, currentWeight } from './calc.js';
 import { profileComplete } from './plan.js';
 import { num } from './util.js';
 import { parseSettings } from './settings-model.js';
+import { workoutPlanSummary } from './workout-plans.js';
 
 export const ACTIVITY_LEVELS = [
   { id: 'sedentary', label: 'Mostly sitting', factor: 1.2 },
@@ -35,11 +36,13 @@ export function dailyRecommendation(state, date) {
   if (bmi < 18.5 || goalBmi < 18.5 || bmi >= 40) return { available: false, reason: 'Your current or goal weight needs individual nutrition guidance. Keep logging, and set targets with a registered nutritionist-dietitian.' };
   const base = num(state.burn.baseKcal);
   if (!(base > 0)) return { available: false, reason: 'Save an everyday calorie burn above zero before calculating targets.' };
-  const strengthDays = Math.min(7, Math.max(0, num(p.strengthDays ?? 5)));
-  const cardioMinutes = Math.min(1260, Math.max(0, num(p.cardioMinutes ?? 30)));
+  const planned = workoutPlanSummary(state, date);
+  const strengthDays = planned?.strengthDays ?? Math.min(7, Math.max(0, num(p.strengthDays ?? 5)));
+  const cardioMinutes = planned?.cardioMinutes ?? Math.min(1260, Math.max(0, num(p.cardioMinutes ?? 30)));
   const strengthExtra = Math.max(0, num(state.burn.strengthMet) - 1) * weight * num(state.burn.strengthMinutes) / 60;
   const cardioExtra = Math.max(0, num(state.burn.jogMet) - 1) * weight * cardioMinutes / 60;
-  const maintenance = Math.round(base + (strengthDays * strengthExtra + cardioExtra) / 7);
+  const weeklyStrength = planned ? Math.max(0, num(state.burn.strengthMet) - 1) * weight * planned.strengthMinutes / 60 : strengthDays * strengthExtra;
+  const maintenance = Math.round(base + (weeklyStrength + cardioExtra) / 7);
   if (maintenance > 6000) return { available: false, reason: 'These burn settings imply more than 6,000 kcal/day. Review everyday burn, session length and MET values, or use targets set with a nutrition professional.' };
   const goal = ['lose', 'maintain', 'gain'].includes(p.goalMode) ? p.goalMode
     : num(p.goalWeightKg) < weight - 0.5 ? 'lose' : num(p.goalWeightKg) > weight + 0.5 ? 'gain' : 'maintain';
@@ -54,10 +57,7 @@ export function dailyRecommendation(state, date) {
   const style = DIET_STYLES.find((x) => x.id === styleId) || DIET_STYLES.find((x) => x.id === 'balanced');
   const exercising = strengthDays > 0 || cardioMinutes > 0;
   const proteinPerKg = style.id === 'protein' ? 1.8 : exercising ? 1.6 : 1.0;
-  const requestedProtein = Math.round(weight * proteinPerKg);
-  const protein = Math.min(requestedProtein, Math.floor(kcal * 0.30 / 4));
-  const fat = Math.round(kcal * 0.30 / 9);
-  const carbs = Math.round((kcal - protein * 4 - fat * 9) / 4);
+  const { protein, carbs, fat, proteinCapped } = macrosForCalories(kcal, weight, proteinPerKg);
   const meals = style.id === 'plant'
     ? ['Try munggo or tokwa with rice, cooked togue and pechay; add fruit.', 'Rotate beans, tofu, nuts and seeds. Include fortified milk or a suitable alternative.']
     : ['Pair fish, chicken, eggs or tokwa with a measured rice portion and plenty of vegetables.', 'Try tinola with sayote, grilled bangus with kangkong, or munggo with kalabasa; add fruit.'];
@@ -65,8 +65,33 @@ export function dailyRecommendation(state, date) {
     available: true, goal, bulk, adjustment, style, automaticStyle, weight, bmi, maintenance, base,
     bmr: Math.round(bmrMifflin({ ...p, weightKg: weight })),
     suggestedBase: suggestBaseKcal(p, weight), strengthDays, cardioMinutes,
-    proteinPerKg, proteinCapped: protein < requestedProtein, floorApplied: kcal > Math.round((maintenance + adjustment) / 10) * 10,
+    proteinPerKg, proteinCapped, floorApplied: kcal > Math.round((maintenance + adjustment) / 10) * 10,
     targets: { kcal, protein, carbs, fat }, meals,
     pace: (kcal - maintenance) * 7 / (num(state.burn.kcalPerKg) || 7700),
+  };
+}
+
+function macrosForCalories(kcal, weight, proteinPerKg) {
+  const requestedProtein = Math.round(weight * proteinPerKg);
+  const protein = Math.min(requestedProtein, Math.floor(kcal * 0.30 / 4));
+  const fat = Math.round(kcal * 0.30 / 9);
+  const carbs = Math.round((kcal - protein * 4 - fat * 9) / 4);
+  return { protein, carbs, fat, proteinCapped: protein < requestedProtein };
+}
+
+/** A preview for a user-entered energy target; never changes saved settings. */
+export function intakeForCalories(state, date, input) {
+  const text = String(input ?? '').trim().replace(',', '.');
+  if (!/^(?:\d+(?:\.\d*)?|\.\d+)$/.test(text)) return { available: false, reason: 'Enter a calorie target to see matching intake suggestions.' };
+  const kcal = Number(text);
+  const rec = dailyRecommendation(state, date);
+  if (!rec.available) return rec;
+  const minimum = state.profile.sex === 'female' ? 1200 : 1500;
+  if (kcal < minimum || kcal > 6000) return { available: false, reason: `Automatic intake suggestions cover ${minimum.toLocaleString('en-US')}–6,000 kcal/day for your profile. For a target outside that range, use individual nutrition guidance.` };
+  const { protein, carbs, fat, proteinCapped } = macrosForCalories(kcal, rec.weight, rec.proteinPerKg);
+  return {
+    available: true, targets: { kcal, protein, carbs, fat }, proteinCapped,
+    proteinPerKg: rec.proteinPerKg, weight: rec.weight, style: rec.style,
+    guides: { fibre: 25, fruitVeg: 400, freeSugars: Math.floor(kcal * 0.10 / 4 * 10) / 10, saturatedFat: Math.floor(kcal * 0.10 / 9 * 10) / 10, sodium: 2000 },
   };
 }

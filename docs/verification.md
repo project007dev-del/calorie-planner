@@ -1,38 +1,28 @@
-# Change verification
+# Change verification: v1.6.0
 
-Checked 7 November 2026. No regressions were found in the checks below. This is a bounded verification record, not a guarantee that every browser/device or possible input is bug-free.
+Checked 7 November 2026. This records the checks performed for calorie-based intake suggestions, editable workout plans and the design update.
 
 ## Automated checks
 
-`npm test`: **40 passing, 0 failing** (28 original checks plus 12 new checks).
+- `npm test`: **72 passing, 0 failing**.
+- `npm run android:sync`: bundled assets compile and synchronize with Capacitor; native version 1.6.0 / 10600.
+- `git diff --check`: passed.
 
-New coverage includes recommendation energy/macro consistency, planned versus completed exercise, goal directions and explicit overrides, recent weight averaging, special-profile guardrails, diet preferences, calorie/protein limits, implausible burn values, everyday activity factors, atomic settings validation, old-backup compatibility, Filipino aliases/filters, unique food IDs and state-specific sources, and offline-shell file coverage.
-
-All JavaScript/module files passed Node syntax checks. `git diff --check` passed. This app has no compilation step or runtime npm dependencies.
+New coverage checks entered-calorie macro energy and limits, invalid inputs, profile eligibility, all four workout templates, dated revisions and same-date replacement, plan validation, backup round trips, workout snapshots, preserved set logs and duration, planned versus completed burn, custom-plan nutrition estimates, and weekly goals including recovery-only routines. Existing nutrition, food, storage and completion checks also pass. The offline-shell check covers all new modules.
 
 ## Browser checks
 
-Used an isolated `127.0.0.1` origin with fabricated sample stats so the `localhost` preview profile remained blank.
+Used fabricated profile and food data on localhost. No production food or workout records were changed.
 
-- Blank-profile guidance renders without an exception.
-- Sample adult profile (30, male, 175 cm, 80 kg, 75 kg goal) personalizes the untouched default burn and produces a target recommendation.
-- Filling suggestions updates the visible fields; Save targets persists them across reloads.
-- Entering a changed calorie value followed by a blank fat value rejects the whole save. Reload confirms the previous calories and macros remain saved.
-- Plant-forward and explicit maintenance preferences update the recommendation. The special nutrition context withholds automatic targets.
-- Jogging preset selection updates the preview and saves correctly.
-- Food search finds togue through “bean sprout,” rice through “kanin” and tofu through “tokwa,” including the My Foods built-in table.
-- Raw/boiled togue selection updates its nutrition and source: 150 g raw is 96 kcal; 150 g boiled is 81 kcal. The cooked entry logs correctly with 7.2 g protein before display rounding.
-- Filipino filters, empty search results, source details and modal Back navigation work.
-- Today, Food, Workout, Progress and Settings render without browser console errors/warnings during the checked flows.
-- Phone viewports of 320, 360 and 390 px were checked for document overflow; no horizontal page overflow was observed. Light and dark themes were exercised. A sample screenshot is saved in `artifacts/daily-targets-mobile.jpg` (ignored by Git).
-- Stopped the local server, reloaded the app and opened recommendations: cached screens, data and the new modules still worked. Restarted the server afterward.
+- Entering 2,000 kcal updates the macro preview to P 144 / C 205 / F 67 g while saved targets remain unchanged. Fill these macros updates the fields; explicit Save persists matching targets after reload. A second 2,500 kcal preview and save also persists correctly.
+- Previewed the 3-day routine, renamed it, changed Monday's squat sets and rep range, and changed session/cardio durations. Added and removed an exercise. Zero sets produces validation feedback without saving. Corrected targets save and survive reload.
+- A later Monday session shows the saved 2 x 8-10 squat target and 50-minute session. New-plan mode opens an empty recovery week and supports changing a day to strength; Cancel preserves the saved plan.
+- The catalogue search for core shows Plank and Dead bug with muscle-focus illustrations.
+- Phone-width settings and workout layouts show no horizontal document overflow. Macro tiles, inputs, weekly cards and controls remain legible. The Sand active tab has readable contrast. Detailed controls remain expandable.
+- Checked flows produce no browser console errors. Screenshots are saved in ignored artifacts/ files.
 
-## Fixed issue and compatibility
+## Compatibility and limits
 
-The previous Settings save loop changed fields while validating them. A later invalid field could leave earlier values changed in memory and subsequently saved by another action. Settings now validates an entire section into a separate object before applying it.
+Old backups retain the original split and gain an empty routine-revision list. Logged sessions use snapshots, including exercise targets and custom duration, so later routine edits do not rewrite their history. Plans and snapshots are included in JSON backups. The service-worker cache is v9 and includes all new modules; native assets are bundled separately.
 
-Existing food values, nutrient snapshots, customized targets, burn settings and logs remain compatible. New profile preferences are filled during normalization. The service-worker cache was bumped and includes both new modules.
-
-## Limits
-
-No physical Android/iOS device, native APK, signed build or store release was tested. Browser UI backup file sharing/import and native storage migration still need device verification. Online nutrition references support general estimates; recipes, food varieties and individual energy needs vary.
+This update has not been installed or exercised on a physical Android device or emulator. Native backup sharing/import, keyboard/inset behavior and upgrade retention still require device acceptance testing, as listed in the Android build guide. The APK is a debug build; production signing and store release remain separate work.

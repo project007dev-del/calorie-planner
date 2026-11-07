@@ -1,12 +1,13 @@
 import { esc, fmt, fmtDate, fmtSigned, fmtLongDate, numOrNull, todayISO, diffDays } from '../util.js';
 import { getDay, getLastBackup } from '../store.js';
-import { planDayById, planDayForDate, profileComplete, DEFAULT_BURN, mealForNow } from '../plan.js';
+import { profileComplete, DEFAULT_BURN, mealForNow } from '../plan.js';
 import {
   dayIntake, dayBalance, strengthStatus, cardioStatus, completeWorkout, projection, hasFood, weightEntries, avgInWindow,
   suggestBaseKcal, suppSchedule, isScheduled, isDue, nextDue, suppStreak, scheduleLabel,
 } from '../calc.js';
 import { ring, meter, toast, backupNow } from '../ui.js';
 import { foodRecommendations } from '../food-recommendations.js';
+import { workoutForDate } from '../workout-plans.js';
 import { openAddFood, portionRecommendations, wireFoodRecommendations } from './food.js';
 
 export function render(root, ctx) {
@@ -110,7 +111,7 @@ export function render(root, ctx) {
     </section>`;
 
   // ----- Workout -----
-  const plan = planDayById(day?.workout?.planDayId) || planDayForDate(date);
+  const plan = workoutForDate(state, date);
   let wStatus;
   if (plan.type === 'strength') {
     const done = day?.workout?.planDayId === plan.id ? s.done : 0;
